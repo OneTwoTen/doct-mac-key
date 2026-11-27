@@ -27,7 +27,7 @@ doct-mac-key/
 │   │   ├── vni.rs            # VNI operator rules
 │   │   ├── tone.rs           # tone placement
 │   │   ├── letters.rs        # Letter/Quality/Tone model + rendering
-│   │   ├── syllable.rs       # Vietnamese syllable validity (smart English)
+│   │   ├── syllable.rs       # Vietnamese syllable validity (literal fallback)
 │   │   ├── sim.rs            # reference host simulation (tests/CLI)
 │   │   ├── ffi.rs            # extern "C" layer + JSON results
 │   │   └── bin/doctkey-cli.rs
@@ -120,7 +120,7 @@ Every `feed_char` / `feed_key` / `commit` call returns:
 | `mode`      | `"vi"` or `"en"` |
 | `method`    | `"telex"` or `"vni"` |
 | `tone_style`| `"modern"` or `"traditional"` |
-| `smart`     | smart English fallback enabled |
+| `smart`     | literal fallback enabled (Vietnamese-first) |
 
 Invariants the host relies on:
 
@@ -167,7 +167,7 @@ Commands accepted by `doctkey_command`:
 | `{"cmd":"toggle_method"}` | telex ↔ vni |
 | `{"cmd":"set_tone_style","tone_style":"traditional"}` | tone placement style |
 | `{"cmd":"toggle_tone_style"}` | modern ↔ traditional |
-| `{"cmd":"set_smart","smart":true}` | smart English fallback on/off |
+| `{"cmd":"set_smart","smart":true}` | Vietnamese-first literal fallback on/off |
 | `{"cmd":"toggle_smart"}` | toggle |
 | `{"cmd":"set_config","config":{…}}` | merge config object |
 | `{"cmd":"commit"}` | commit composition now (op="commit") |
@@ -217,7 +217,8 @@ Process keys left to right, maintaining:
 | key | effect |
 |---|---|
 | `aa` `ee` `oo` | merge the **immediately preceding** letter into â / ê / ô |
-| `aw` `ow` `uw` | apply ă / ơ / ư to the nearest previous `a`/`o`/`u` (search backwards through the letters, skipping consonants); `w` with no target at word start = `ư`, otherwise literal `w` |
+| `aw` `ow` `uw` | apply ă / ơ / ư to the nearest previous `a`/`o`/`u` (search backwards through the letters, skipping consonants) |
+| `w` with no target | UniKey's standalone `w` → `ư`: at the start of a word, after a single letter that is not `w e y f j k z` (`tw → tư`, `bw → bư`, but `ew`/`kw` stay), and after the two-letter onsets `tr th ch nh ng kh gi ph gh` (`chw → chư`). Everywhere else it is a literal `w` (`new`, `threw`, `few`, `view`, `kw`) |
 | `dd` | merge into `đ` **only at the start of the word** (first two keys) |
 | `s` `f` `r` `x` `j` | tone: sắc / huyền / hỏi / ngã / nặng — applies only when the word has a vowel, otherwise it is a literal letter |
 | `z` | remove: tone first; if no tone, all quality marks (including `đ`); if nothing to remove, literal `z` |
@@ -249,11 +250,12 @@ and append the literal tone letter (`ass → as`). `had_undo` is set in both cas
 | `0` | remove tone, else remove quality marks |
 
 VNI repeated operator: remove the mark and consume the digit (no literal digit is
-inserted); `had_undo = true`. If an operator has no applicable target, the digit
-is a break character (commit the word, pass the digit to the host). If
-`smart_english` is on and the current word rendered **without** the digit is an
-escaped literal (cannot be Vietnamese), a digit operator also behaves as a break
-character, so English words such as `abc123` keep their digits.
+inserted); `had_undo = true`. Applicability is decided by **simulation**: the
+digit only enters the word when replaying it changes the rendered word *and*
+leaves a Vietnamese form. That keeps retroactive marks working (`vie65t → việt`,
+`thuo73 → thuở`, `xine6 → xinê`) while digits without a target (`a9`, `qu1`) or
+after an English word (`abc123`) are break characters (commit the word, pass the
+digit to the host).
 
 Telex tone keys: if a tone key is pressed while the word has vowels but **no
 placeable vowel** (e.g. the `u` of `qu`), it stays a literal letter.
@@ -290,18 +292,22 @@ Each rendered letter is uppercase iff the raw key that created its base letter
 was typed with Shift/Caps Lock. Merged marks keep the case of their base letter.
 Tone marks never change case.
 
-### 5.5 Smart English fallback (config `smart_english`)
+### 5.5 Literal fallback (config `smart_english`)
 
-Only in `mode == "vi"`. After rendering, take the rendered word **without the
-tone mark** (quality marks kept, then map to unaccented letters: `viêt → viet`).
+Priority is **Vietnamese-first**, the way UniKey behaves: keystrokes that spell a
+Vietnamese syllable are rendered as Vietnamese, even when they also spell an
+English word (`test → tét`, `best → bét`, `this → thí`, `there → thể`,
+`queen → quên`, `chair → chải`, `treen → trên`). English typing is protected by
+the fact that most English words are *not* Vietnamese spellings
+(`hello`, `meeting`, `google`, `church`, `boring`, `choose`, `order`, `class`,
+`staff` stay literal), not by a dictionary.
 
-* If the literal keystrokes spell a **known English word** of 4+ letters, keep
-  them verbatim (`test → test`, `text → text`, `choose → choose`,
-  `church → church`, `boring → boring`). The curated list lives in
-  `core/src/english_words.rs`; it contains only words that actually collide with
-  Telex operators, so Vietnamese sequences are unaffected.
-* If that unaccented form is a valid Vietnamese syllable **or a prefix of one**
-  (so a half-typed word never flips to English), keep the Vietnamese rendering.
+Only in `mode == "vi"` and only with `smart_english` on:
+
+* Take the rendered word **without the tone mark** (quality marks kept) and ask
+  `syllable::is_valid_or_prefix`. If it is a Vietnamese syllable **or a prefix of
+  one** — so a half-typed word never flips to English (`viê` keeps its mark) —
+  keep the Vietnamese rendering.
 * Otherwise render the **literal raw keystrokes**, e.g. `hello → hello`,
   `meeting → meeting`, `looks → looks` (smart off: `lốk`), `confirm`,
   `fresh`, `google`.
@@ -311,16 +317,22 @@ tone mark** (quality marks kept, then map to unaccented letters: `viêt → viet
   form is still a Vietnamese syllable/prefix, or when the whole word is a tiny
   2–3 key undo pattern (`aaa → aa`, `ass → as`, `ddd → dd`, `aww → aw`,
   `aasz → â`, `aaszz → a`, `vieejtz → viêt`). An undo in a longer word whose
-  untoned form is not Vietnamese no longer exempts it, so English words that
-  end in a repeated operator keep their literal keystrokes (`order`, `class`,
-  `staff`, `deliveryor`, `hardware`, `message`). An undo that happened earlier
-  and was followed by more keys never exempted the word.
+  untoned form is not Vietnamese no longer exempts it, so English words that end
+  in a repeated operator keep their literal keystrokes (`order`, `class`,
+  `staff`, `deliveryor`, `hardware`, `message`). An undo that happened earlier and
+  was followed by more keys never exempted the word.
+* `w → ư` (5.2) is undone when the letter after the `ư` can never follow it in a
+  syllable (`sweet → sweet`), and at the end of the word when it is the blind
+  `ưo` pair (`two → two`; `ưo` only exists while a coda is still coming, as in
+  `ngưo` → `người`). Real Vietnamese words are unaffected (`người`, `được`).
 
-Validity data: embed a curated set of Vietnamese onsets/rimes/nuclei and accept
-all combinations plus all their prefixes; be permissive rather than strict, so
-that ordinary Vietnamese words are never mis-classified. See
-`core/src/syllable.rs`. The inventory includes the loanword nucleus `oo`
-(`boong`, `xoong`).
+Validity data: embed a curated inventory of onsets and **rhymes**, quality-aware
+(`ê` and `e` are different rhymes, so `tíe` is rejected while `tiê` is accepted as
+a prefix of `tiêng`), and accept every combination plus all its prefixes. Being
+prefix-friendly is intentional: a half-typed Vietnamese word must never flip to
+English, and rejecting the `ưo` transient would make `người` flicker back to raw
+keys mid-word. See `core/src/syllable.rs`. The inventory includes the native/
+loanword rhymes `oong`/`ooc` (`boong`, `xoong`) and the loanword `xinê`.
 
 ### 5.6 Per-key results
 
@@ -464,7 +476,7 @@ Swift 6 / InputMethodKit, no third-party dependencies.
   * toggle Vietnamese/English: `⌃⌥V`
   * toggle Telex/VNI: `⌃⌥T`
   * toggle tone style: `⌃⌥D`
-  * toggle smart English: `⌃⌥E`
+  * toggle Vietnamese-first fallback: `⌃⌥E`
   * reload config: `⌃⌥R`
 * `Config` — loads `~/.config/doctkey/config.json` (creating defaults when
   absent), persists user toggles back to that file, hotkey strings like

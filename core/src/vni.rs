@@ -1,9 +1,10 @@
 //! VNI operator rules (SPEC §5.2).
 //!
 //! VNI uses digits as operators: `1`..`5` set the word-level tone, `6`/`7`/`8`/`9`
-//! apply `â/ê/ô`, `ơ/ư`, `ă` and `đ`, and `0` removes marks. Digits that cannot
-//! act (`a9`, `qu1`, `t6`) are *break characters*: the engine commits the word
-//! and lets the host type the digit (this module only reports applicability).
+//! apply `â/ê/ô`, `ơ/ư`, `ă` and `đ`, and `0` removes marks. The engine decides
+//! whether a digit may enter the word (it simulates the replay and keeps the
+//! digit only when it changes the rendered word into Vietnamese), so this module
+//! only replays digits that were already accepted.
 
 use crate::config::ToneStyle;
 use crate::letters::{has_quality, Letter, Quality, RawKey, Tone};
@@ -17,8 +18,8 @@ use crate::tone;
 ///
 /// `last_key_undo` reports whether the **last** processed key was an
 /// undo/removal (repeated operator, or a `0` that removed something), mirroring
-/// Telex; it is re-computed for every key and consumed by the smart English
-/// fallback exception (SPEC §5.5).
+/// Telex; it is re-computed for every key and consumed by the literal fallback
+/// exception (SPEC §5.5).
 pub fn replay(
     raw: &[RawKey],
     style: ToneStyle,
@@ -132,42 +133,6 @@ fn find_target(letters: &[Letter], targets: &[char]) -> Option<usize> {
         .rposition(|letter| !letter.locked && targets.contains(&letter.base))
 }
 
-fn quality_allows(letters: &[Letter], index: usize, quality: Quality) -> bool {
-    match letters[index].quality {
-        None => true,
-        Some(existing) => existing == quality,
-    }
-}
-
-fn applicable_target(letters: &[Letter], targets: &[char], quality: Quality) -> bool {
-    find_target(letters, targets).is_some_and(|index| quality_allows(letters, index, quality))
-}
-
-/// Whether `digit` can act as a VNI operator on the current word.
-///
-/// Used by the engine *before* appending the digit to the raw word; `false`
-/// means the digit must be treated as a break character.
-pub fn digit_applicable(
-    letters: &[Letter],
-    tone: Option<Tone>,
-    digit: char,
-    style: ToneStyle,
-) -> bool {
-    match digit {
-        '1'..='5' => {
-            let _ = style;
-            tone::has_placeable_vowel(letters)
-        }
-        '6' => applicable_target(letters, &['a', 'e', 'o'], Quality::Circumflex),
-        '7' => find_horn_target(letters)
-            .is_some_and(|index| quality_allows(letters, index, Quality::Horn)),
-        '8' => applicable_target(letters, &['a'], Quality::Breve),
-        '9' => applicable_target(letters, &['d'], Quality::DStroke),
-        '0' => tone.is_some() || has_quality(letters),
-        _ => false,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -278,21 +243,6 @@ mod tests {
     }
 
     #[test]
-    fn zero_removes_tone_then_quality() {
-        assert_eq!(replay_word("a10"), "a");
-        assert_eq!(replay_word("a60"), "a");
-        // `a0`: nothing to remove, so `0` is not applicable.
-        let (letters, tone) = state("a");
-        assert!(!digit_applicable(&letters, tone, '0', ToneStyle::Modern));
-        assert!(digit_applicable(
-            &letters,
-            Some(Tone::Acute),
-            '0',
-            ToneStyle::Modern
-        ));
-    }
-
-    #[test]
     fn repeated_operator_undoes_and_consumes_digit() {
         assert_eq!(replay_word("a11"), "a");
         assert_eq!(replay_word("a66"), "a");
@@ -300,26 +250,6 @@ mod tests {
         assert_eq!(replay_word("d99"), "d");
         let (_, tone) = state("a11");
         assert_eq!(tone, None);
-    }
-
-    #[test]
-    fn applicability_mirrors_the_operators() {
-        let (letters, tone) = state("bcf");
-        for digit in ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'] {
-            assert!(
-                !digit_applicable(&letters, tone, digit, ToneStyle::Modern),
-                "{digit} on bcf"
-            );
-        }
-        let (letters, tone) = state("a");
-        assert!(digit_applicable(&letters, tone, '1', ToneStyle::Modern));
-        assert!(digit_applicable(&letters, tone, '6', ToneStyle::Modern));
-        assert!(!digit_applicable(&letters, tone, '7', ToneStyle::Modern));
-        assert!(!digit_applicable(&letters, tone, '9', ToneStyle::Modern));
-        let (letters, tone) = state("qu");
-        assert!(!digit_applicable(&letters, tone, '1', ToneStyle::Modern));
-        let (letters, tone) = state("d");
-        assert!(digit_applicable(&letters, tone, '9', ToneStyle::Modern));
     }
 
     #[test]

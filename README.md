@@ -12,7 +12,7 @@ hỗ trợ **Telex**, **VNI**, chế độ **tiếng Việt / tiếng Anh**, chu
 │    • không chứa logic tiếng Việt                                     │
 │        │ JSON qua C ABI (doctkey.h)                                 │
 │  libdoctkey_core.a  (Rust)                                          │
-│    • Telex / VNI, đặt dấu, chữ hoa, smart English, undo/restore     │
+│    • Telex / VNI, đặt dấu, chữ hoa, ưu tiên tiếng Việt, undo/restore │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -22,8 +22,12 @@ hỗ trợ **Telex**, **VNI**, chế độ **tiếng Việt / tiếng Anh**, chu
 - **VNI**: dấu `1 2 3 4 5`, `0` xoá dấu, `6` â/ê/ô, `7` ơ/ư, `8` ă, `9` đ.
 - **Đặt dấu thông minh**: `tiếng`, `đường`, `người`, `hoà`/`hòa`, `thuỷ`/`thủy` (kiểu mới / kiểu cũ),
   xử lý đúng `qu`, `gi`, nguyên âm đôi/ba, âm cuối.
-- **Chế độ tiếng Anh** và **tự động nhận biết tiếng Anh** (smart): gõ `hello`, `meeting`,
-  `google` trong chế độ tiếng Việt vẫn ra đúng chữ, không bị bẻ dấu.
+- **Ưu tiên tiếng Việt như UniKey**: cách gõ nào tạo được âm tiết Việt thì ra tiếng
+  Việt (`test→tét`, `this→thí`, `queen→quên`, `treen→trên`); từ tiếng Anh chỉ giữ
+  nguyên khi không thể là tiếng Việt (`hello`, `meeting`, `google`, `text`).
+  Muốn gõ tiếng Anh đúng từng chữ thì chuyển chế độ EN bằng `⌃⌥V`.
+- **Phím `w` như UniKey**: `w`→`ư`, `tw`→`tư`, `chw`→`chư`, `nw`→`nư`; còn `kw`,
+  `ew`, `new`, `threw` vẫn là `w`.
 - **Khôi phục / undo**: gõ lặp phím biến đổi để huỷ (`aaa→aa`, `ass→as`), `z` xoá dấu,
   `Esc` trả lại đúng các phím đã gõ, `Backspace` xoá từng phím gốc.
 - **Phím tắt toàn cục** đổi chế độ tức thì, có menu bar hiển thị VI/EN.
@@ -129,7 +133,7 @@ Cửa sổ gồm 4 tab:
 
 | Tab | Nội dung |
 |---|---|
-| **Chung** | Chế độ gõ (Tiếng Việt / English), kiểu gõ (Telex / VNI), kiểu đặt dấu (Hiện đại / Truyền thống), Smart English, chế độ chèn (Marked / Direct), **chế độ tương thích (CGEvent)** + cấp quyền Accessibility + **khởi động cùng macOS**, mở/nạp lại file cấu hình. Mọi thay đổi áp dụng ngay và được lưu. |
+| **Chung** | Chế độ gõ (Tiếng Việt / English), kiểu gõ (Telex / VNI), kiểu đặt dấu (Hiện đại / Truyền thống), Ưu tiên tiếng Việt, chế độ chèn (Marked / Direct), **chế độ tương thích (CGEvent)** + cấp quyền Accessibility + **khởi động cùng macOS**, mở/nạp lại file cấu hình. Mọi thay đổi áp dụng ngay và được lưu. |
 | **Phím tắt** | Sửa 5 phím tắt toàn cục dạng `ctrl+alt+v`, kiểm tra hợp lệ, **Áp dụng** (đăng ký lại ngay) và **Khôi phục mặc định**. |
 | **Trạng thái** | Đường dẫn bản đang chạy/bản đã cài, phiên bản, chữ ký (ad-hoc / Apple Development / Developer ID), danh sách chứng chỉ ký mã, trạng thái nguồn nhập (đã đăng ký & bật / chưa bật / **chưa được hệ thống nhận**), nút **Đăng ký bộ gõ**, **Bật**, **Chọn**, **Mở System Settings → Input Sources**, **Sao chép chẩn đoán**, và phần **Cài / cập nhật vào hệ thống…** (có chọn chứng chỉ ký) / **Gỡ cài đặt…**. |
 | **Giới thiệu** | Phiên bản, đường dẫn cấu hình, hướng dẫn nhanh. |
@@ -167,7 +171,7 @@ nhận; nên tắt chế độ này khi dùng bộ gõ DoctKey chuẩn để tr�
 | `⌃⌥V` | Chuyển **Tiếng Việt ⇄ English** |
 | `⌃⌥T` | Chuyển **Telex ⇄ VNI** |
 | `⌃⌥D` | Chuyển **kiểu đặt dấu mới ⇄ cũ** |
-| `⌃⌥E` | Bật/tắt **tự động nhận biết tiếng Anh** |
+| `⌃⌥E` | Bật/tắt **ưu tiên tiếng Việt** (tắt = luôn bỏ dấu tiếng Việt) |
 | `⌃⌥R` | Nạp lại file cấu hình |
 
 Menu bar hiển thị `VI` hoặc `EN`; bấm vào để đổi nhanh, xem cấu hình, mở file cấu hình
@@ -197,7 +201,7 @@ hoa8c5      → hoặc        thuy3      → thuỷ
 - Gõ lặp phím biến đổi để huỷ dấu: `aaa → aa`, `ass → as`, `ddd → dd`.
 - `z` xoá dấu: `aasz → â`, `aaszz → a`.
 - `Esc` khi đang gõ dở: trả lại đúng chuỗi phím gốc (ví dụ `vieejt<Esc> → vieejt`).
-- Muốn gõ tiếng Anh chắc chắn: nhấn `⌃⌥V` (hoặc tắt smart English rồi dùng chế độ EN).
+- Muốn gõ tiếng Anh chắc chắn: nhấn `⌃⌥V` để sang chế độ EN (giống UniKey).
 
 ## Cấu hình
 
@@ -260,7 +264,7 @@ cargo run --manifest-path core/Cargo.toml --bin doctkey-cli -- --repl
 | Không thấy DoctKey trong Input Sources | Mở cửa sổ **Cài đặt → Trạng thái** để xem lý do; đăng xuất/đăng nhập lại là bắt buộc trên macOS 26; bấm **Đăng ký bộ gõ**; nếu vẫn không được, xem chữ ký (ad-hoc?) và ký lại bằng Apple Development trong tab Trạng thái; hoặc chạy `scripts/diagnose.sh`. |
 | Đã chọn DoctKey nhưng gõ không ra dấu | Kiểm tra menu bar đang là `VI` (nhấn `⌃⌥V`); kiểm tra kiểu gõ đúng (`Telex`/`VNI`); thử đổi `insert_mode` sang `direct` nếu app không hiển thị marked text. |
 | macOS chặn bộ gõ chuẩn (không thấy trong Input Sources, chữ ký ad-hoc) | Dùng **Chế độ tương thích (CGEvent)**: tab Chung → bật, cấp quyền Accessibility, chọn bố cục ABC, bật khởi động cùng macOS. |
-| Gõ tiếng Anh bị bẻ dấu | Bật smart English (`⌃⌥E`) hoặc chuyển sang chế độ EN (`⌃⌥V`). |
+| Gõ tiếng Anh bị bẻ dấu | Chuyển sang chế độ EN (`⌃⌥V`) — bộ gõ ưu tiên tiếng Việt giống UniKey. |
 | Không gõ được trong Terminal / VSCode / một số app | Đổi `insert_mode` sang `direct` trong config rồi nạp lại (`⌃⌥R`). |
 | App không chạy / menu bar không hiện | `pkill -f DoctKey` rồi chọn lại bộ gõ; xem log: `log stream --predicate 'process == "DoctKey"'`. |
 | macOS báo app không hợp lệ / chặn chữ ký | Ký bằng chứng chỉ Apple Development/Developer ID: `SIGN_ID="..." make install`. |
@@ -284,7 +288,7 @@ docs/SPEC.md đặc tả chi tiết (hành vi engine, giao thức JSON, thiết 
   C ABI; lõi trả về JSON mô tả thao tác cần làm (`append` / `replace` / `commit` /
   `pass` / `none`) và tầng Swift chỉ thi hành.
 - Lõi **tính lại từ đầu** chuỗi phím gốc của từ đang gõ sau mỗi phím, nhờ vậy
-  `Backspace`, `Esc`, huỷ dấu và smart English luôn nhất quán, tất định.
+  `Backspace`, `Esc`, huỷ dấu và ưu tiên tiếng Việt luôn nhất quán, tất định.
 - Mode/kiểu gõ là trạng thái toàn cục của engine trong tiến trình bộ gõ; phần soạn
   từ của từng client được reset khi đổi app.
 

@@ -261,7 +261,7 @@ final class SettingsWindowController: NSObject {
         insertControl.segmentStyle = .rounded
         insertControl.widthAnchor.constraint(greaterThanOrEqualToConstant: 260).isActive = true
 
-        let smartHelp = wrappingLabel("Tự động nhận diện từ tiếng Anh và giữ nguyên phím gõ thay vì bỏ dấu tiếng Việt.",
+        let smartHelp = wrappingLabel("Ưu tiên tiếng Việt như UniKey: cách gõ tạo được âm tiết Việt thì bỏ dấu, từ không thể là tiếng Việt thì giữ nguyên phím gõ (hello, meeting, google). Tắt để luôn bỏ dấu.",
                                       size: 11,
                                       color: .secondaryLabelColor)
         let insertHelp = wrappingLabel("Marked hiển thị chữ đang gõ dưới dạng gạch chân (mặc định). Direct ghi trực tiếp vào tài liệu — dùng khi Terminal/VSCode hiển thị sai.",
@@ -315,7 +315,7 @@ final class SettingsWindowController: NSObject {
             controlRow("Chế độ gõ:", control: modeControl),
             controlRow("Kiểu gõ:", control: methodControl),
             controlRow("Đặt dấu:", control: toneControl),
-            controlRow("Smart English:", control: smartSwitch),
+            controlRow("Ưu tiên tiếng Việt:", control: smartSwitch),
             smartHelp,
             separator(),
             controlRow("Chế độ chèn:", control: insertControl),

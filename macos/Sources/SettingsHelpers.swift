@@ -489,7 +489,7 @@ enum AppInfo {
         ⌃⌥V — Tiếng Việt / English
         ⌃⌥T — Telex / VNI
         ⌃⌥D — kiểu đặt dấu
-        ⌃⌥E — Smart English
+        ⌃⌥E — Ưu tiên tiếng Việt
         ⌃⌥R — nạp lại cấu hình
 
         Xem README.md trong thư mục repo để biết hướng dẫn đầy đủ.

@@ -239,6 +239,18 @@ pub fn bases(letters: &[Letter]) -> String {
     out
 }
 
+/// The untoned Vietnamese spelling of a letter list, lowercase (`viêt` → `viê`).
+///
+/// This is what the syllable validity tables consume: quality marks are part of
+/// the spelling (`ê` ≠ `e`), the tone is not.
+pub fn quality_string(letters: &[Letter]) -> String {
+    let mut out = String::with_capacity(letters.len() * 3);
+    for letter in letters {
+        out.push(glyph(letter, None));
+    }
+    out
+}
+
 /// Render the raw keystrokes literally (used by Escape and smart fallback).
 pub fn raw_string(raw: &[RawKey]) -> String {
     let mut out = String::with_capacity(raw.len());

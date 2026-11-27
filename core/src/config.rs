@@ -92,7 +92,7 @@ impl ToneStyle {
 }
 
 /// Complete engine configuration. Defaults are `vi`, Telex, modern tone
-/// placement and smart English enabled.
+/// placement and the Vietnamese-first literal fallback enabled.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
     /// Language mode.
@@ -101,7 +101,7 @@ pub struct Config {
     pub method: Method,
     /// Tone placement style.
     pub tone_style: ToneStyle,
-    /// Smart English fallback in Vietnamese mode.
+    /// Vietnamese-first literal fallback in Vietnamese mode.
     pub smart_english: bool,
 }
 

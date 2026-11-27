@@ -14,8 +14,8 @@
 //!   precomposed Vietnamese rendering tables.
 //! * [`telex`], [`vni`] — the two operator sets, replaying raw keys into letters.
 //! * [`tone`] — tone-mark placement rules (SPEC §5.3).
-//! * [`syllable`] — Vietnamese syllable validity used by the smart English
-//!   fallback (SPEC §5.5).
+//! * [`syllable`] — Vietnamese syllable validity used by the literal fallback
+//!   (SPEC §5.5).
 //! * [`engine`] — the per-word state machine: raw keystrokes in, results out.
 //! * [`sim`] — reference host simulation used by tests and the CLI (SPEC §6).
 //! * [`ffi`] — the `extern "C"` layer (the only module with `unsafe` code).
@@ -39,7 +39,6 @@
 #![deny(unsafe_code)]
 
 pub mod config;
-pub mod english_words;
 pub mod engine;
 pub mod letters;
 pub mod sim;
