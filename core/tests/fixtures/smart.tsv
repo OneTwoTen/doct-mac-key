@@ -1,9 +1,14 @@
 # DoctKey acceptance fixtures — literal fallback (and smart off).
 # Format: method,mode,smart,tone_style <TAB> keys <TAB> expected document text
 #
-# Priority is Vietnamese-first, like UniKey: keystrokes that spell a Vietnamese
-# syllable become Vietnamese even when they also spell an English word. English
-# survives only when the keystrokes cannot be Vietnamese.
+# The smart fallback gives English back in three situations:
+#   1. the keystrokes cannot be Vietnamese at all (`hello`, `google`);
+#   2. a Telex tone key sits inside an English consonant cluster (`st`, `rt`,
+#      `xt`, …), where it cannot be a Vietnamese operator (`best`, `first`);
+#   3. the keystrokes are a known English collision whose Vietnamese reading is
+#      not a common Vietnamese word (`this`, `does`, `door`; see
+#      `core/src/english.rs`).
+# Keystrokes that spell a common Vietnamese word stay Vietnamese.
 
 # smart ON: words that cannot be Vietnamese fall back to the literal keystrokes
 telex,vi,1,modern	hello	hello
@@ -20,25 +25,88 @@ telex,vi,1,modern	delivery order	delivery order
 telex,vi,1,modern	order	order
 telex,vi,1,modern	class	class
 telex,vi,1,modern	staff	staff
-# smart ON: a Vietnamese spelling always wins, exactly like UniKey
-telex,vi,1,modern	test	tét
-telex,vi,1,modern	best	bét
-telex,vi,1,modern	this	thí
-telex,vi,1,modern	there	thể
+
+# smart ON: a tone key inside an English consonant cluster stays a letter.
+# `st`/`rt`/`xt`/`rk`/`rm` cannot occur in a Vietnamese syllable, so the tone
+# mark is written after the word instead (`bets`, `lits`, `quets` below).
+telex,vi,1,modern	best	best
+telex,vi,1,modern	test	test
+telex,vi,1,modern	rest	rest
+telex,vi,1,modern	nest	nest
+telex,vi,1,modern	lest	lest
+telex,vi,1,modern	pest	pest
+telex,vi,1,modern	vest	vest
+telex,vi,1,modern	list	list
+telex,vi,1,modern	last	last
+telex,vi,1,modern	lost	lost
+telex,vi,1,modern	most	most
+telex,vi,1,modern	must	must
+telex,vi,1,modern	post	post
+telex,vi,1,modern	cost	cost
+telex,vi,1,modern	host	host
+telex,vi,1,modern	past	past
+telex,vi,1,modern	quest	quest
+telex,vi,1,modern	chest	chest
+telex,vi,1,modern	guest	guest
+telex,vi,1,modern	first	first
+telex,vi,1,modern	sort	sort
+telex,vi,1,modern	part	part
+telex,vi,1,modern	form	form
+telex,vi,1,modern	word	word
+telex,vi,1,modern	work	work
+telex,vi,1,modern	wrist	wrist
+telex,vi,1,modern	internet	internet
+# ... and the same letters with the tone key typed last are still Vietnamese
+telex,vi,1,modern	bets	bét
+telex,vi,1,modern	lits	lít
+telex,vi,1,modern	quets	quét
+telex,vi,1,modern	chets	chét
+
+# smart ON: known English collisions whose Vietnamese reading is obscure
+telex,vi,1,modern	this	this
+telex,vi,1,modern	those	those
+telex,vi,1,modern	does	does
+telex,vi,1,modern	goes	goes
+telex,vi,1,modern	door	door
+telex,vi,1,modern	down	down
+telex,vi,1,modern	says	says
+telex,vi,1,modern	wrong	wrong
+telex,vi,1,modern	photo	photo
+telex,vi,1,modern	here	here
+telex,vi,1,modern	roof	roof
+telex,vi,1,modern	virus	virus
+telex,vi,1,modern	tree	tree
+# short, very frequent English words whose Vietnamese reading is obscure
+telex,vi,1,modern	of	of
+telex,vi,1,modern	is	is
+telex,vi,1,modern	or	or
+telex,vi,1,modern	if	if
+telex,vi,1,modern	off	off
+telex,vi,1,modern	row	row
+
+# smart ON: Vietnamese-first still wins when the Vietnamese word is common.
+# These are the same keys, but the Vietnamese reading is a real, frequent word,
+# so it keeps its marks (`thees`/`theer`/`theem`/`reets` type the same words).
 telex,vi,1,modern	these	thế
+telex,vi,1,modern	there	thể
+telex,vi,1,modern	been	bên
 telex,vi,1,modern	queen	quên
 telex,vi,1,modern	chair	chải
+telex,vi,1,modern	cats	cát
+telex,vi,1,modern	hats	hát
+telex,vi,1,modern	sets	sét
+telex,vi,1,modern	lots	lót
+telex,vi,1,modern	songs	sóng
+telex,vi,1,modern	sense	sến
+# short Vietnamese words are never taken by the English list
+telex,vi,1,modern	as	á
+telex,vi,1,modern	us	ú
+telex,vi,1,modern	its	ít
+telex,vi,1,modern	reset	rết
+telex,vi,1,modern	hair	hải
+telex,vi,1,modern	theme	thêm
 telex,vi,1,modern	treen	trên
-# ... and English is kept only when it cannot be Vietnamese
-telex,vi,1,modern	text	text
-telex,vi,1,modern	choose	choose
-telex,vi,1,modern	church	church
-telex,vi,1,modern	boring	boring
-# UniKey's `w → ư` must not eat English: `sweet` gives the key back at once,
-# `two` gives it back when the word ends (`ưo` only exists before a coda).
-telex,vi,1,modern	sweet	sweet
-telex,vi,1,modern	two	two
-telex,vi,1,modern	twelve	twelve
+
 # smart ON: valid Vietnamese is kept (even if the keystrokes were accidental)
 telex,vi,1,modern	vieejt	việt
 # smart OFF: the same keystrokes are always transformed
@@ -48,6 +116,8 @@ telex,vi,0,modern	confirm	conỉm
 telex,vi,0,modern	fresh	fréh
 telex,vi,0,modern	meeting	mêting
 telex,vi,0,modern	hello	hello
+telex,vi,0,modern	best	bét
+telex,vi,0,modern	this	thí
 # VNI: an escaped word must not swallow following digits
 vni,vi,1,modern	abc123	abc123
 vni,vi,1,modern	looks	looks

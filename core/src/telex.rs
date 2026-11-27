@@ -20,9 +20,13 @@ use crate::tone;
 /// * `standalone_w` is the index of the letter produced by a *standalone* `w`
 ///   (`w → ư`, UNC §5.2). The engine uses it to give the letter back to English
 ///   words when the `ư` cannot be part of a Vietnamese syllable.
+/// * `english_clusters` enables the consonant-cluster rule (SPEC §5.5): with the
+///   smart fallback on, a tone key inside an English cluster (`best`, `first`,
+///   `text`) stays literal so the word can fall back to its English spelling.
 pub fn replay(
     raw: &[RawKey],
     style: ToneStyle,
+    english_clusters: bool,
     letters: &mut Vec<Letter>,
     tone: &mut Option<Tone>,
     last_key_undo: &mut bool,
@@ -30,7 +34,7 @@ pub fn replay(
 ) {
     *standalone_w = None;
     let _ = style; // Telex placement uses the style at render time, not here.
-    for key in raw {
+    for (index, key) in raw.iter().enumerate() {
         *last_key_undo = false;
         let upper = key.upper;
         match key.ch {
@@ -40,10 +44,17 @@ pub fn replay(
             'z' => *last_key_undo = remove_marks(letters, tone, upper),
             _ => {
                 if let Some(next) = Tone::from_telex(key.ch) {
-                    // Tone keys only act when there is a vowel that can carry
-                    // the mark; otherwise (`s` of `sang`, the `u` of `qu`) the
-                    // key stays a literal letter.
-                    if tone::has_placeable_vowel(letters) {
+                    // A tone key inside an English consonant cluster (`st` of
+                    // `best`, `rt` of `first`) can never be a Vietnamese
+                    // operator: Vietnamese has no such cluster, and a tone mark
+                    // is written after the syllable. Keeping the key literal
+                    // lets the literal fallback spell the English word.
+                    if english_clusters && tone_key_is_cluster(raw, index) {
+                        letters.push(Letter::new(key.ch, upper));
+                    } else if tone::has_placeable_vowel(letters) {
+                        // Tone keys only act when there is a vowel that can
+                        // carry the mark; otherwise (`s` of `sang`, the `u` of
+                        // `qu`) the key stays a literal letter.
                         if *tone == Some(next) {
                             // Same tone again: remove it and emit the literal key.
                             *tone = None;
@@ -62,6 +73,28 @@ pub fn replay(
             }
         }
     }
+}
+
+/// Whether the tone key at `index` belongs to an English consonant cluster.
+///
+/// In Vietnamese the tone mark is written after the syllable and the letters
+/// `s f r x` never follow a vowel inside a consonant cluster, so a tone key
+/// followed by a plain consonant (`st` of `best`, `rt` of `first`, `xt` of
+/// `text`) must be part of the English spelling, not an operator.
+///
+/// Two kinds of followers are ignored:
+/// * `w`, `z` and the other tone keys, because those are Telex operators
+///   themselves (`ass`, `aww`) and never English clusters;
+/// * `j`, because English has no `j` + consonant cluster while `j` is the normal
+///   Telex `nặng` key — `vieejt` must keep working.
+fn tone_key_is_cluster(raw: &[RawKey], index: usize) -> bool {
+    if raw[index].ch == 'j' {
+        return false;
+    }
+    matches!(
+        raw.get(index + 1).map(|key| key.ch),
+        Some('b' | 'c' | 'g' | 'h' | 'k' | 'l' | 'm' | 'n' | 'p' | 'q' | 't' | 'v')
+    )
 }
 
 /// `aa` / `ee` / `oo`: apply â / ê / ô to the nearest previous matching letter.
@@ -266,6 +299,7 @@ mod tests {
         replay(
             &keys,
             ToneStyle::Modern,
+            true,
             &mut letters,
             &mut tone,
             &mut last_key_undo,
@@ -473,6 +507,7 @@ mod tests {
             replay(
                 &keys,
                 ToneStyle::Modern,
+                true,
                 &mut letters,
                 &mut tone,
                 &mut last_key_undo,

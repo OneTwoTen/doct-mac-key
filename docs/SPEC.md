@@ -258,7 +258,13 @@ after an English word (`abc123`) are break characters (commit the word, pass the
 digit to the host).
 
 Telex tone keys: if a tone key is pressed while the word has vowels but **no
-placeable vowel** (e.g. the `u` of `qu`), it stays a literal letter.
+placeable vowel** (e.g. the `u` of `qu`), it stays a literal letter. With the
+smart fallback on (5.5), a tone key that is followed by a plain consonant
+(`b c g h k l m n p q t v`) also stays a literal letter: it belongs to an English
+consonant cluster (`st`, `rt`, `xt`, …) that Vietnamese cannot have, so the word
+can fall back to its English spelling (`best`, `first`, `text`). `j` is exempt
+(`vieejt → việt`), and a tone key written after the final consonant is unaffected
+(`bets → bét`).
 
 ### 5.3 Tone placement
 
@@ -295,19 +301,36 @@ Tone marks never change case.
 ### 5.5 Literal fallback (config `smart_english`)
 
 Priority is **Vietnamese-first**, the way UniKey behaves: keystrokes that spell a
-Vietnamese syllable are rendered as Vietnamese, even when they also spell an
-English word (`test → tét`, `best → bét`, `this → thí`, `there → thể`,
-`queen → quên`, `chair → chải`, `treen → trên`). English typing is protected by
-the fact that most English words are *not* Vietnamese spellings
-(`hello`, `meeting`, `google`, `church`, `boring`, `choose`, `order`, `class`,
-`staff` stay literal), not by a dictionary.
+common Vietnamese word are rendered as Vietnamese, even when they also spell an
+English word (`treen → trên`, `queen → quên`, `chair → chải`, `there → thể`,
+`these → thế`, `been → bên`, `cats → cát`). English typing is protected by three
+rules that only apply in `mode == "vi"` with `smart_english` on:
 
-Only in `mode == "vi"` and only with `smart_english` on:
+1. **Impossible Vietnamese**: most English words are not Vietnamese spellings
+   (`hello`, `meeting`, `google`, `church`, `boring`, `choose`, `order`, `class`,
+   `staff` stay literal).
+2. **Consonant clusters**: a Telex tone key inside an English cluster (`st`, `rt`,
+   `xt`, `rk`, `rm`, …) cannot be a Vietnamese operator, because Vietnamese has
+   no such cluster and writes the tone mark after the word. So `best → best`,
+   `test → test`, `first → first`, `list → list`, `most → most`, `must → must`,
+   `quest → quest`, `text` stay literal, while the same keys with the tone last
+   are still Vietnamese (`bets → bét`, `lits → lít`, `quets → quét`). The `j`
+   key is exempt, so `vieejt` still renders `việt`.
+3. **English collisions** (`core/src/english.rs`): a curated list of common
+   English words whose Vietnamese reading is *not* a common Vietnamese word
+   (`this`, `those`, `does`, `goes`, `door`, `down`, `says`, `wrong`, `photo`,
+   `here`, `virus`, …). When both readings are common the Vietnamese one wins, so
+   those words are deliberately absent from the list.
+
+Smart off (`smart_english: false`) disables all three rules and always renders the
+Telex interpretation (`test → tét`, `best → bét`).
+
+The detailed order of checks:
 
 * Take the rendered word **without the tone mark** (quality marks kept) and ask
   `syllable::is_valid_or_prefix`. If it is a Vietnamese syllable **or a prefix of
   one** — so a half-typed word never flips to English (`viê` keeps its mark) —
-  keep the Vietnamese rendering.
+  keep the Vietnamese rendering *unless* rule 2 or 3 gives the word back.
 * Otherwise render the **literal raw keystrokes**, e.g. `hello → hello`,
   `meeting → meeting`, `looks → looks` (smart off: `lốk`), `confirm`,
   `fresh`, `google`.
