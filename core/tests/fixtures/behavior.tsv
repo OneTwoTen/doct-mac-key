@@ -1,0 +1,57 @@
+# DoctKey acceptance fixtures — editing, undo/restore, punctuation, case, EN mode.
+# Format: method,mode,smart,tone_style <TAB> keys <TAB> expected document text
+# Special keys: <BS> backspace, <ESC> escape, <DEL> forward delete, <TAB>, <ENTER>
+
+# backspace works per raw keystroke
+telex,vi,1,modern	vieejt<BS>	việ
+telex,vi,1,modern	vieejt<BS><BS>	viê
+telex,vi,1,modern	vieejt<BS><BS><BS>	vie
+telex,vi,1,modern	tooi<BS>	tô
+telex,vi,1,modern	as<BS>	a
+telex,vi,1,modern	aa<BS>	a
+telex,vi,1,modern	dduwowngf<BS>	đương
+telex,vi,1,modern	nam<BS>	na
+telex,vi,1,modern	nam <BS>	nam
+telex,vi,1,modern	vieejt <BS>	việt
+
+# escape restores the literal keystrokes
+telex,vi,1,modern	as<ESC>	as
+telex,vi,1,modern	vieejt<ESC>	vieejt
+telex,vi,1,modern	dduwowngf<ESC>	dduwowngf
+telex,vi,1,modern	as<ESC> nam	as nam
+
+# repeated operators undo and emit a literal key
+telex,vi,1,modern	aaa	aa
+telex,vi,1,modern	ddd	dd
+telex,vi,1,modern	ass	as
+telex,vi,1,modern	aww	aw
+telex,vi,1,modern	booong	boong
+
+# z removes marks, then becomes literal
+telex,vi,1,modern	aasz	â
+telex,vi,1,modern	aaszz	a
+telex,vi,1,modern	az	az
+
+# word boundaries: commit then pass the delimiter through
+telex,vi,1,modern	vieejt, nam	việt, nam
+telex,vi,1,modern	vieejt  nam	việt  nam
+telex,vi,1,modern	tooi.	tôi.
+telex,vi,1,modern	tooi!	tôi!
+telex,vi,1,modern	nam2026	nam2026
+telex,vi,1,modern	abc123	abc123
+
+# case follows the keystrokes
+telex,vi,1,modern	VIEEJT	VIỆT
+telex,vi,1,modern	VIEEJT NAM	VIỆT NAM
+telex,vi,1,modern	DDI	ĐI
+telex,vi,1,modern	DD	Đ
+telex,vi,1,modern	Dd	Đ
+telex,vi,1,modern	Chaof	Chào
+telex,vi,1,modern	Nguyeenx	Nguyễn
+
+# English mode passes everything through
+telex,en,1,modern	vieejt nam	vieejt nam
+telex,en,1,modern	as	as
+telex,en,1,modern	dduwowngf	dduwowngf
+telex,en,1,modern	DDI	DDI
+telex,en,1,modern	hello, world!	hello, world!

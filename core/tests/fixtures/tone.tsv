@@ -1,0 +1,38 @@
+# DoctKey acceptance fixtures — tone placement & tone style.
+# Format: method,mode,smart,tone_style <TAB> keys <TAB> expected document text
+
+# modern style: tone on the main vowel (hoà, khoẻ, thuỷ)
+telex,vi,1,modern	hoas	hoá
+telex,vi,1,modern	hoaf	hoà
+telex,vi,1,modern	thuyr	thuỷ
+telex,vi,1,modern	khoer	khoẻ
+telex,vi,1,modern	quas	quá
+telex,vi,1,modern	quys	quý
+# closed syllables: tone on the second vowel
+telex,vi,1,modern	oanhf	oành
+telex,vi,1,modern	hoangf	hoàng
+telex,vi,1,modern	thuyeenf	thuyền
+# triphthongs: middle vowel
+telex,vi,1,modern	oaif	oài
+telex,vi,1,modern	hoaif	hoài
+telex,vi,1,modern	ngoaij	ngoại
+telex,vi,1,modern	khuyur	khuỷu
+# quality-marked nucleus: last marked vowel
+telex,vi,1,modern	dduwowngf	đường
+telex,vi,1,modern	nguwowif	người
+telex,vi,1,modern	tieengs	tiếng
+telex,vi,1,modern	muoons	muốn
+telex,vi,1,modern	hoawcj	hoặc
+telex,vi,1,modern	chieeuf	chiều
+telex,vi,1,modern	hieeur	hiểu
+telex,vi,1,modern	chuyeenj	chuyện
+# traditional style: tone on the glide vowel for oa/oe/uy
+telex,vi,1,traditional	hoas	hóa
+telex,vi,1,traditional	hoaf	hòa
+telex,vi,1,traditional	thuyr	thủy
+telex,vi,1,traditional	khoer	khỏe
+# unchanged by style
+telex,vi,1,traditional	chaof	chào
+telex,vi,1,traditional	quas	quá
+telex,vi,1,traditional	giaf	già
+telex,vi,1,traditional	meof	mèo

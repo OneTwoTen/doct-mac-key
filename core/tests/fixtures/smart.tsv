@@ -1,0 +1,37 @@
+# DoctKey acceptance fixtures — smart English fallback (and smart off).
+# Format: method,mode,smart,tone_style <TAB> keys <TAB> expected document text
+
+# smart ON: words that cannot be Vietnamese fall back to the literal keystrokes
+telex,vi,1,modern	hello	hello
+telex,vi,1,modern	meeting	meeting
+telex,vi,1,modern	looks	looks
+telex,vi,1,modern	google	google
+telex,vi,1,modern	confirm	confirm
+telex,vi,1,modern	fresh	fresh
+telex,vi,1,modern	world	world
+telex,vi,1,modern	hello, world!	hello, world!
+# smart ON: a final repeated operator must not eat a letter of an English word
+telex,vi,1,modern	deliveryor	deliveryor
+telex,vi,1,modern	delivery order	delivery order
+telex,vi,1,modern	order	order
+telex,vi,1,modern	class	class
+telex,vi,1,modern	staff	staff
+# smart ON: known English words keep their letters (no tone mark eats a key)
+telex,vi,1,modern	text	text
+telex,vi,1,modern	test	test
+telex,vi,1,modern	best	best
+telex,vi,1,modern	choose	choose
+telex,vi,1,modern	church	church
+telex,vi,1,modern	boring	boring
+# smart ON: valid Vietnamese is kept (even if the keystrokes were accidental)
+telex,vi,1,modern	vieejt	việt
+# smart OFF: the same keystrokes are always transformed
+telex,vi,0,modern	looks	lốk
+telex,vi,0,modern	google	gôgle
+telex,vi,0,modern	confirm	conỉm
+telex,vi,0,modern	fresh	fréh
+telex,vi,0,modern	meeting	mêting
+telex,vi,0,modern	hello	hello
+# VNI: an escaped word must not swallow following digits
+vni,vi,1,modern	abc123	abc123
+vni,vi,1,modern	looks	looks

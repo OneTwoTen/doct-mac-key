@@ -1,0 +1,71 @@
+# DoctKey acceptance fixtures — Telex core transformations.
+# Format: method,mode,smart,tone_style <TAB> keys <TAB> expected document text
+# These files are the authoritative behaviour contract. Do not edit to make a
+# test pass; fix the engine instead.
+
+telex,vi,1,modern	vieejt	việt
+telex,vi,1,modern	vieejt nam	việt nam
+telex,vi,1,modern	tooi	tôi
+telex,vi,1,modern	dduwowngf	đường
+telex,vi,1,modern	tieengs	tiếng
+telex,vi,1,modern	nguwowif	người
+telex,vi,1,modern	dduwowcj	được
+telex,vi,1,modern	hoawcj	hoặc
+telex,vi,1,modern	muoons	muốn
+telex,vi,1,modern	quas	quá
+telex,vi,1,modern	giaf	già
+telex,vi,1,modern	gif	gì
+telex,vi,1,modern	giuwx	giữ
+telex,vi,1,modern	gieengs	giếng
+telex,vi,1,modern	thuowng	thương
+telex,vi,1,modern	as	á
+telex,vi,1,modern	aw	ă
+telex,vi,1,modern	aa	â
+telex,vi,1,modern	ee	ê
+telex,vi,1,modern	oo	ô
+telex,vi,1,modern	ow	ơ
+telex,vi,1,modern	uw	ư
+telex,vi,1,modern	w	ư
+telex,vi,1,modern	dd	đ
+telex,vi,1,modern	uow	ươ
+telex,vi,1,modern	uwow	ươ
+telex,vi,1,modern	uowng	ương
+telex,vi,1,modern	uowngf	ường
+telex,vi,1,modern	ddau	đau
+telex,vi,1,modern	ddaay	đây
+telex,vi,1,modern	chaof	chào
+telex,vi,1,modern	cura	của
+telex,vi,1,modern	nguyeenx	nguyễn
+telex,vi,1,modern	quyeens	quyến
+telex,vi,1,modern	quyeenr	quyển
+telex,vi,1,modern	quys	quý
+telex,vi,1,modern	kieens	kiến
+telex,vi,1,modern	meof	mèo
+telex,vi,1,modern	bias	bía
+telex,vi,1,modern	theer	thể
+telex,vi,1,modern	muas	múa
+telex,vi,1,modern	oanhf	oành
+telex,vi,1,modern	hoaif	hoài
+telex,vi,1,modern	oaif	oài
+telex,vi,1,modern	ngoaij	ngoại
+telex,vi,1,modern	khuyur	khuỷu
+telex,vi,1,modern	thuyeenf	thuyền
+telex,vi,1,modern	chieeuf	chiều
+telex,vi,1,modern	hieeur	hiểu
+telex,vi,1,modern	chuyeenj	chuyện
+telex,vi,1,modern	nghieeng	nghiêng
+telex,vi,1,modern	nghiax	nghĩa
+telex,vi,1,modern	nguyeen	nguyên
+telex,vi,1,modern	quyeen	quyên
+telex,vi,1,modern	aas	ấ
+telex,vi,1,modern	aaf	ầ
+telex,vi,1,modern	aar	ẩ
+telex,vi,1,modern	aaj	ậ
+telex,vi,1,modern	aax	ẫ
+
+# open uơ nuclei and the xinê loanword
+telex,vi,1,modern	quow	quơ
+telex,vi,1,modern	quowr	quở
+telex,vi,1,modern	thuowr	thuở
+telex,vi,1,modern	huow	huơ
+telex,vi,1,modern	xinee	xinê

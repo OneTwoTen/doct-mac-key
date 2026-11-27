@@ -1,0 +1,92 @@
+# DoctKey acceptance fixtures — Vietnamese quality marks, tones and undo.
+# Format: method,mode,smart,tone_style <TAB> keys <TAB> expected document text
+
+# quality marks
+telex,vi,1,modern	aa	â
+telex,vi,1,modern	aw	ă
+telex,vi,1,modern	ee	ê
+telex,vi,1,modern	oo	ô
+telex,vi,1,modern	ow	ơ
+telex,vi,1,modern	uw	ư
+telex,vi,1,modern	dd	đ
+
+# â + five tones
+telex,vi,1,modern	aas	ấ
+telex,vi,1,modern	aaf	ầ
+telex,vi,1,modern	aar	ẩ
+telex,vi,1,modern	aax	ẫ
+telex,vi,1,modern	aaj	ậ
+
+# ă + five tones; uaw now means ư + a (suawr → sửa)
+telex,vi,1,modern	aws	ắ
+telex,vi,1,modern	awf	ằ
+telex,vi,1,modern	awr	ẳ
+telex,vi,1,modern	awx	ẵ
+telex,vi,1,modern	awj	ặ
+telex,vi,1,modern	suawr	sửa
+telex,vi,1,modern	suawr 	sửa 
+telex,vi,1,modern	nuawx	nữa
+telex,vi,1,modern	nuawr	nửa
+telex,vi,1,modern	suwra	sửa
+
+# ê + five tones
+telex,vi,1,modern	ees	ế
+telex,vi,1,modern	eef	ề
+telex,vi,1,modern	eer	ể
+telex,vi,1,modern	eex	ễ
+telex,vi,1,modern	eej	ệ
+
+# ô + five tones
+telex,vi,1,modern	oos	ố
+telex,vi,1,modern	oof	ồ
+telex,vi,1,modern	oor	ổ
+telex,vi,1,modern	oox	ỗ
+telex,vi,1,modern	ooj	ộ
+
+# ơ + five tones
+telex,vi,1,modern	ows	ớ
+telex,vi,1,modern	owf	ờ
+telex,vi,1,modern	owr	ở
+telex,vi,1,modern	owx	ỡ
+telex,vi,1,modern	owj	ợ
+
+# ư + five tones
+telex,vi,1,modern	uws	ứ
+telex,vi,1,modern	uwf	ừ
+telex,vi,1,modern	uwr	ử
+telex,vi,1,modern	uwx	ữ
+telex,vi,1,modern	uwj	ự
+
+# whole words with final consonants
+telex,vi,1,modern	vieejt	việt
+telex,vi,1,modern	tieengs	tiếng
+telex,vi,1,modern	dduwowngf	đường
+telex,vi,1,modern	nguwowif	người
+telex,vi,1,modern	hoas	hoá
+telex,vi,1,modern	quas	quá
+telex,vi,1,modern	giaf	già
+telex,vi,1,modern	giuwx	giữ
+telex,vi,1,modern	hoawcj	hoặc
+telex,vi,1,modern	quyeets	quyết
+telex,vi,1,modern	dduwowngfz	đương
+telex,vi,1,modern	xooong	xoong
+telex,vi,1,modern	booong	boong
+telex,vi,1,modern	quow	quơ
+telex,vi,1,modern	quowr	quở
+telex,vi,1,modern	uow	ươ
+telex,vi,1,modern	uowng	ương
+telex,vi,1,modern	uowngf	ường
+telex,vi,1,modern	thuowng	thương
+
+# undo / restore
+telex,vi,1,modern	aasz	â
+telex,vi,1,modern	aaszz	a
+telex,vi,1,modern	aaa	aa
+telex,vi,1,modern	ass	as
+telex,vi,1,modern	ddd	dd
+telex,vi,1,modern	aww	aw
+telex,vi,1,modern	hardware	hardware
+telex,vi,1,modern	message	message
+
+# traditional tone placement
+telex,vi,1,traditional	hoas	hóa

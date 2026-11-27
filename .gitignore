@@ -1,0 +1,9 @@
+# Rust
+core/target/
+
+# Build products
+build/
+*.zip
+
+# macOS
+.DS_Store

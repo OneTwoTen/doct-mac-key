@@ -1,0 +1,29 @@
+[package]
+name = "doctkey-core"
+version = "0.1.0"
+edition = "2021"
+description = "DoctKey Vietnamese/English input method engine (linguistic core)"
+license = "MIT"
+
+[lib]
+name = "doctkey_core"
+crate-type = ["staticlib", "rlib", "cdylib"]
+
+[[bin]]
+name = "doctkey-cli"
+path = "src/bin/doctkey-cli.rs"
+
+[dependencies]
+serde_json = "1"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+
+[[test]]
+name = "fixtures_test"
+path = "tests/fixtures_test.rs"
+# Custom harness: `cargo test` prints the per-fixture-file pass counts even when
+# everything passes (libtest would otherwise capture output of passing tests).
+harness = false

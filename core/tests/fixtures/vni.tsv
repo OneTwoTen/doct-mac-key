@@ -1,0 +1,42 @@
+# DoctKey acceptance fixtures — VNI method.
+# Format: method,mode,smart,tone_style <TAB> keys <TAB> expected document text
+# VNI: 1 sắc, 2 huyền, 3 hỏi, 4 ngã, 5 nặng, 0 xóa dấu,
+#      6 â/ê/ô, 7 ơ/ư, 8 ă, 9 đ
+
+vni,vi,1,modern	vie65t	việt
+vni,vi,1,modern	vie65t nam	việt nam
+vni,vi,1,modern	tie61ng	tiếng
+vni,vi,1,modern	nguye6n4	nguyễn
+vni,vi,1,modern	d9u7o7ng2	đường
+vni,vi,1,modern	hoa8c5	hoặc
+vni,vi,1,modern	hoa2ng	hoàng
+vni,vi,1,modern	thuy3	thuỷ
+vni,vi,1,modern	thuye6n2	thuyền
+vni,vi,1,modern	muo6n1	muốn
+vni,vi,1,modern	ngu7o7i2	người
+vni,vi,1,modern	to6i	tôi
+vni,vi,1,modern	quye6n3	quyển
+vni,vi,1,modern	u7o7	ươ
+vni,vi,1,modern	a8	ă
+vni,vi,1,modern	a8n	ăn
+vni,vi,1,modern	d9	đ
+vni,vi,1,modern	d9i	đi
+vni,vi,1,modern	a1	á
+vni,vi,1,modern	a11	a
+vni,vi,1,modern	a10	a
+vni,vi,1,modern	a0	a0
+vni,vi,1,modern	a6	â
+vni,vi,1,modern	e6	ê
+vni,vi,1,modern	o6	ô
+vni,vi,1,modern	o7	ơ
+vni,vi,1,modern	u7	ư
+vni,vi,1,modern	VIE65T	VIỆT
+vni,vi,1,modern	abc123	abc123
+# traditional style works in VNI too
+vni,vi,1,traditional	thuy3	thủy
+vni,vi,1,traditional	hoa2	hòa
+
+# open uơ nuclei and the xinê loanword
+vni,vi,1,modern	quo7	quơ
+vni,vi,1,modern	thuo73	thuở
+vni,vi,1,modern	xine6	xinê
