@@ -749,6 +749,15 @@ do {
     check("compat plan commit: lets the delimiter through",
           commit.passesEventThrough && !commit.consumesEvent)
     check("compat plan commit: resets the tracked word", commit.newShown.isEmpty)
+    // The engine may refine the word at commit time (`two` instead of `tưo`).
+    let refined = CompatEditPlan.plan(for: KeyResult(op: .commit,
+                                                     text: "two",
+                                                     word: "",
+                                                     composing: false,
+                                                     consumed: false),
+                                      shown: "tưo")
+    check("compat plan commit: rewrites a refined word",
+          refined.backspaces == 2 && refined.insert == "wo")
     // Defensive: no tracked composition but a word to commit must not be lost.
     let untrackedCommit = CompatEditPlan.plan(for: KeyResult(op: .commit,
                                                              text: "abc",

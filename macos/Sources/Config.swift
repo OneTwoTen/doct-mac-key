@@ -212,7 +212,7 @@ final class Config {
         "toggle_mode": "Bật/tắt tiếng Việt",
         "toggle_method": "Đổi kiểu gõ Telex/VNI",
         "toggle_tone_style": "Đổi kiểu đặt dấu",
-        "toggle_smart": "Bật/tắt Smart English",
+        "toggle_smart": "Bật/tắt ưu tiên tiếng Việt",
         "reload_config": "Nạp lại cấu hình"
     ]
 

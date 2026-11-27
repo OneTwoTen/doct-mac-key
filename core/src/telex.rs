@@ -17,13 +17,18 @@ use crate::tone;
 ///   `z` that removed a tone/quality mark. It is re-computed for every key, so
 ///   an undo earlier in the word does not leak into the final value; the smart
 ///   English fallback uses it as its narrow exception (SPEC §5.5).
+/// * `standalone_w` is the index of the letter produced by a *standalone* `w`
+///   (`w → ư`, UNC §5.2). The engine uses it to give the letter back to English
+///   words when the `ư` cannot be part of a Vietnamese syllable.
 pub fn replay(
     raw: &[RawKey],
     style: ToneStyle,
     letters: &mut Vec<Letter>,
     tone: &mut Option<Tone>,
     last_key_undo: &mut bool,
+    standalone_w: &mut Option<usize>,
 ) {
+    *standalone_w = None;
     let _ = style; // Telex placement uses the style at render time, not here.
     for key in raw {
         *last_key_undo = false;
@@ -31,7 +36,7 @@ pub fn replay(
         match key.ch {
             'a' | 'e' | 'o' => apply_circumflex(letters, key.ch, upper, last_key_undo),
             'd' => apply_dstroke(letters, upper, last_key_undo),
-            'w' => apply_horn_after_ua(letters, upper, last_key_undo),
+            'w' => apply_horn_after_ua(letters, upper, last_key_undo, standalone_w),
             'z' => *last_key_undo = remove_marks(letters, tone, upper),
             _ => {
                 if let Some(next) = Tone::from_telex(key.ch) {
@@ -102,7 +107,12 @@ fn apply_dstroke(letters: &mut Vec<Letter>, upper: bool, undone: &mut bool) {
 /// `w` after `ua` gives `ư` + `a`, so `suawr` and `suwra` both render `sửa`.
 /// Excludes `qua` (`quaw -> quă`) and undoes `ư` when pressed again (`suaww -> suaw`).
 /// Every other `w` keeps the normal nearest-vowel horn rule.
-fn apply_horn_after_ua(letters: &mut Vec<Letter>, upper: bool, undone: &mut bool) {
+fn apply_horn_after_ua(
+    letters: &mut Vec<Letter>,
+    upper: bool,
+    undone: &mut bool,
+    standalone_w: &mut Option<usize>,
+) {
     let n = letters.len();
     if n >= 2
         && !(n == 3 && letters[0].base == 'q')
@@ -127,21 +137,29 @@ fn apply_horn_after_ua(letters: &mut Vec<Letter>, upper: bool, undone: &mut bool
             Some(_) => {}
         }
     }
-    apply_horn(letters, upper, undone);
+    apply_horn(letters, upper, undone, standalone_w);
 }
 
 /// `aw` / `ow` / `uw`: apply ă / ơ / ư to the nearest previous `a` / `o` / `u`.
 ///
-/// A lone `w` at the very start of a word produces `ư`; in every other case
-/// where no target exists it is a literal `w`.
-fn apply_horn(letters: &mut Vec<Letter>, upper: bool, undone: &mut bool) {
+/// When no letter can take the mark the key is a *standalone* `w`, which UniKey
+/// renders as `ư` in the same positions it does (`tw → tư`, `chw → chư`,
+/// `w → ư`) and as a literal `w` everywhere else (`threw`, `new`, `kw`). See
+/// [`standalone_w_is_horn`].
+fn apply_horn(
+    letters: &mut Vec<Letter>,
+    upper: bool,
+    undone: &mut bool,
+    standalone_w: &mut Option<usize>,
+) {
     let target = letters
         .iter()
         .rposition(|letter| !letter.locked && matches!(letter.base, 'a' | 'o' | 'u'));
     let Some(mut index) = target else {
-        if letters.is_empty() {
+        if standalone_w_is_horn(letters) {
             let mut letter = Letter::new('u', upper);
             letter.quality = Some(Quality::Horn);
+            *standalone_w = Some(letters.len());
             letters.push(letter);
         } else {
             letters.push(Letter::new('w', upper));
@@ -181,10 +199,41 @@ fn apply_horn(letters: &mut Vec<Letter>, upper: bool, undone: &mut bool) {
     }
 }
 
+/// Whether a `w` with no letter to modify should produce `ư` (UniKey rule).
+///
+/// UniKey types `ư` for a standalone `w` at the start of a word, after a single
+/// letter that is not itself a `w`/`e`/`y`/`f`/`j`/`k`/`z` (`tw → tư`,
+/// `bw → bư`, but `ew`, `kw` and `yw` stay literal), and after the common
+/// two-letter onsets (`chw → chư`, `trw → trư`, `ngw → ngư`, …). Everywhere else
+/// the key is a literal `w`, so English words keep it (`new`, `threw`, `kw`,
+/// `few`, `view`).
+fn standalone_w_is_horn(letters: &[Letter]) -> bool {
+    match letters.len() {
+        0 => true,
+        1 => !matches!(
+            letters[0].base,
+            'w' | 'e' | 'y' | 'f' | 'j' | 'k' | 'z'
+        ),
+        2 => matches!(
+            (letters[0].base, letters[1].base),
+            ('t', 'r')
+                | ('t', 'h')
+                | ('c', 'h')
+                | ('n', 'h')
+                | ('n', 'g')
+                | ('k', 'h')
+                | ('g', 'i')
+                | ('p', 'h')
+                | ('g', 'h')
+        ),
+        _ => false,
+    }
+}
+
 /// `z`: remove the tone first, then every quality mark; otherwise literal `z`.
 ///
 /// Returns `true` when a mark was actually removed (the key was a removal, which
-/// the smart English fallback treats as an undo).
+/// the literal fallback treats as an undo).
 fn remove_marks(letters: &mut Vec<Letter>, tone: &mut Option<Tone>, upper: bool) -> bool {
     if tone.is_some() {
         *tone = None;
@@ -213,12 +262,14 @@ mod tests {
         let mut letters = Vec::new();
         let mut tone = None;
         let mut last_key_undo = false;
+        let mut standalone_w = None;
         replay(
             &keys,
             ToneStyle::Modern,
             &mut letters,
             &mut tone,
             &mut last_key_undo,
+            &mut standalone_w,
         );
         (letters, tone, last_key_undo)
     }
@@ -255,8 +306,42 @@ mod tests {
     #[test]
     fn w_targets_nearest_previous_a_o_u_through_consonants() {
         assert_eq!(word_of("banw"), "băn");
-        assert_eq!(word_of("tw"), "tw");
         assert_eq!(word_of("iew"), "iew");
+    }
+
+    #[test]
+    fn standalone_w_becomes_horn_u_like_unikey() {
+        // UniKey's `w → ư`: at the start of a word, after one letter that is
+        // not w/e/y/f/j/k/z, and after the common two-letter onsets.
+        for (keys, expected) in [
+            ("w", "ư"),
+            ("tw", "tư"),
+            ("dw", "dư"),
+            ("bw", "bư"),
+            ("nw", "nư"),
+            ("sw", "sư"),
+            ("chw", "chư"),
+            ("trw", "trư"),
+            ("thw", "thư"),
+            ("nhw", "như"),
+            ("ngw", "ngư"),
+            ("khw", "khư"),
+            ("giw", "giư"),
+            ("phw", "phư"),
+            ("ghw", "ghư"),
+            ("iw", "iư"),
+        ] {
+            assert_eq!(word_of(keys), expected, "keys {keys:?}");
+        }
+        // Everywhere else the key stays a literal `w`, so English keeps it.
+        for keys in ["kw", "ew", "yw", "fw", "jw", "zw", "new", "few", "view", "threw", "chew"] {
+            assert_eq!(word_of(keys), keys, "keys {keys:?}");
+        }
+        // A real vowel target still wins over the standalone rule.
+        assert_eq!(word_of("aw"), "ă");
+        assert_eq!(word_of("ow"), "ơ");
+        assert_eq!(word_of("uw"), "ư");
+        assert_eq!(word_of("quaw"), "quă");
     }
 
     #[test]
@@ -384,12 +469,14 @@ mod tests {
             let mut letters = Vec::new();
             let mut tone = None;
             let mut last_key_undo = false;
+            let mut standalone_w = None;
             replay(
                 &keys,
                 ToneStyle::Modern,
                 &mut letters,
                 &mut tone,
                 &mut last_key_undo,
+                &mut standalone_w,
             );
             let index =
                 tone.and_then(|tone| tone::place(&letters, ToneStyle::Modern).map(|i| (tone, i)));

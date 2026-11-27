@@ -133,7 +133,7 @@ final class StatusMenu: NSObject {
                            title: "Đặt dấu: Hiện đại / Truyền thống",
                            action: #selector(menuToggleToneStyle(_:)))
         smartItem = addItem(to: menu,
-                            title: "Smart English",
+                            title: "Ưu tiên tiếng Việt",
                             action: #selector(menuToggleSmart(_:)))
         compatibilityItem = addItem(to: menu,
                                     title: "Chế độ tương thích (CGEvent): Tắt",
@@ -195,7 +195,7 @@ final class StatusMenu: NSObject {
         toneItem?.title = "Đặt dấu: Hiện đại / Truyền thống — đang: \(state.toneStyleName)"
         toneItem?.state = .off
 
-        smartItem?.title = "Smart English (tự động nhận tiếng Anh)"
+        smartItem?.title = "Ưu tiên tiếng Việt (từ không phải tiếng Việt giữ nguyên phím)"
         smartItem?.state = state.smartEnglish ? .on : .off
 
         compatibilityItem?.title = state.compatibilityMode

@@ -91,13 +91,15 @@ struct CompatEditPlan: Equatable {
 
         case .commit:
             // append/replace already wrote the composition into the document, so
-            // the visible text is final: only the delimiter (space, return…)
-            // needs to reach the application. If the composition was never
-            // tracked (e.g. the tap started mid-word), insert the text instead of
-            // silently losing the word.
-            let needsInsert = shown.isEmpty && !result.text.isEmpty
-            return CompatEditPlan(backspaces: 0,
-                                  insert: needsInsert ? result.text : "",
+            // usually only the delimiter (space, return…) needs to reach the
+            // application. The engine may still refine the final text at commit
+            // time (a standalone `w` is given back to English: `two`, not `tưo`),
+            // so rewrite the word when the committed text differs. If the
+            // composition was never tracked (e.g. the tap started mid-word),
+            // insert the text instead of silently losing the word.
+            let (backspaces, insert) = Self.diff(shown, result.text)
+            return CompatEditPlan(backspaces: backspaces,
+                                  insert: insert,
                                   consumesEvent: false,
                                   passesEventThrough: true,
                                   newShown: "")

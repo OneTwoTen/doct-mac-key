@@ -12,7 +12,9 @@
 use serde_json::Value;
 
 use crate::config::{Config, Method, Mode};
-use crate::letters::{normalize_u_o, raw_string, render, Letter, RawKey, Tone};
+use crate::letters::{
+    normalize_u_o, quality_string, raw_string, render, Letter, Quality, RawKey, Tone,
+};
 use crate::syllable;
 use crate::telex;
 use crate::tone;
@@ -134,28 +136,7 @@ fn is_valid_vietnamese_letters(letters: &[Letter]) -> bool {
     if letters.is_empty() || letters.len() > 8 {
         return false;
     }
-    let mut buf = [0u8; 8];
-    for (dst, letter) in buf.iter_mut().zip(letters.iter()) {
-        if !letter.base.is_ascii_lowercase() {
-            return false;
-        }
-        *dst = letter.base as u8;
-    }
-    std::str::from_utf8(&buf[..letters.len()]).is_ok_and(syllable::is_valid_or_prefix)
-}
-
-fn is_english_raw(raw: &[RawKey]) -> bool {
-    if !(4..=16).contains(&raw.len()) {
-        return false;
-    }
-    let mut buf = [0u8; 16];
-    for (dst, key) in buf.iter_mut().zip(raw.iter()) {
-        if !key.ch.is_ascii() {
-            return false;
-        }
-        *dst = (key.ch as u8).to_ascii_lowercase();
-    }
-    std::str::from_utf8(&buf[..raw.len()]).is_ok_and(crate::english_words::is_english)
+    syllable::is_valid_or_prefix(&quality_string(letters))
 }
 
 fn has_forbidden_checked_tone(letters: &[Letter], tone: Option<Tone>) -> bool {
@@ -169,23 +150,57 @@ fn has_forbidden_checked_tone(letters: &[Letter], tone: Option<Tone>) -> bool {
         || (letters.len() >= 2 && letters[letters.len() - 2].base == 'c' && last.base == 'h')
 }
 
+/// One full rendering of the current raw keystrokes (SPEC §5.2, §5.5).
+struct Rendered {
+    /// The visible text: Vietnamese, or the literal keystrokes when escaped.
+    word: String,
+    /// Whether the smart fallback took the literal keystrokes.
+    escaped: bool,
+    /// Index of a letter produced by a standalone `w` (`w → ư`), if any.
+    standalone_w: Option<usize>,
+}
+
+/// Whether the letters end with the blind `ưo` pair (`tưo`, from `two`).
+fn ends_with_blind_horn_o(letters: &[Letter]) -> bool {
+    let len = letters.len();
+    len >= 2
+        && letters[len - 1].base == 'o'
+        && letters[len - 1].quality.is_none()
+        && letters[len - 2].base == 'u'
+        && letters[len - 2].quality == Some(Quality::Horn)
+}
+
+/// Whether `next` may follow a `ư` in a Vietnamese syllable.
+///
+/// `ư` continues with `a`/`i`/`u`/`ơ` and with the codas `c m n ng p t`; `o` is
+/// allowed because the next key turns the pair into `ươ` (`người`, `được`).
+/// Everything else (`sưê`, `sưi` + coda, `tưem`, …) cannot be Vietnamese.
+fn vietnamese_after_horn(next: Option<&Letter>) -> bool {
+    match next {
+        None => true,
+        Some(letter) => matches!(letter.base, 'a' | 'i' | 'o' | 'u' | 'c' | 'm' | 'n' | 'p' | 't'),
+    }
+}
+
 /// Recompute the rendering of raw keystrokes (SPEC §5.2, §5.5).
 ///
-/// The smart English fallback normally wins whenever the untoned form is not a
-/// Vietnamese syllable/prefix. Its one exception — "keep the Vietnamese
-/// rendering even though it is not valid" — is deliberately narrow: it applies
-/// only when the **last** raw key was itself an undo/removal (a repeated
-/// operator undo, or `z`/`0` clearing a mark). An undo earlier in the word does
-/// not exempt later ordinary keystrokes, so `aaa` keeps `aa` but `hardware` and
-/// `message` fall back to their literal keystrokes.
-fn render_word_into(
-    cfg: &Config,
-    raw: &[RawKey],
-    letters: &mut Vec<Letter>,
-) -> (Option<Tone>, String, bool) {
+/// Priority is Vietnamese-first, the way UniKey behaves: whenever the untoned
+/// form is a Vietnamese syllable/prefix, its rendering wins — even when the same
+/// keystrokes spell an English word (`test → tét`, `this → thí`). Only a form
+/// that cannot be Vietnamese falls back to the literal keystrokes, which is what
+/// keeps `hello`, `meeting` or `google` intact.
+///
+/// The fallback has one exception — "keep the Vietnamese rendering even though
+/// it is not valid" — which is deliberately narrow: it applies only when the
+/// **last** raw key was itself an undo/removal (a repeated operator undo, or
+/// `z`/`0` clearing a mark). An undo earlier in the word does not exempt later
+/// ordinary keystrokes, so `aaa` keeps `aa` but `hardware` and `message` fall
+/// back to their literal keystrokes.
+fn render_word_into(cfg: &Config, raw: &[RawKey], letters: &mut Vec<Letter>) -> Rendered {
     letters.clear();
     let mut tone = None;
     let mut last_key_undo = false;
+    let mut standalone_w = None;
     match cfg.method {
         Method::Telex => telex::replay(
             raw,
@@ -193,6 +208,7 @@ fn render_word_into(
             letters,
             &mut tone,
             &mut last_key_undo,
+            &mut standalone_w,
         ),
         Method::Vni => vni::replay(
             raw,
@@ -205,25 +221,33 @@ fn render_word_into(
     // `u` + `ơ` → `ươ` needs the following letters (open `uơ` words such as
     // `quơ`/`thuở` must stay), so it is applied once, after the replay.
     normalize_u_o(letters);
+    // `w → ư` (SPEC §5.2) must not eat English: a `ư` that the following letter
+    // can never continue in Vietnamese (`sweet` → `sưêt`) gives the key back.
+    if let Some(index) = standalone_w {
+        if !vietnamese_after_horn(letters.get(index + 1)) {
+            letters[index] = Letter::new('w', letters[index].upper);
+            standalone_w = None;
+        }
+    }
 
     let valid = is_valid_vietnamese_letters(letters) && !has_forbidden_checked_tone(letters, tone);
-    // A known English word keeps its literal keystrokes: Telex operators inside
-    // it (`s` of `test`, `x` of `text`, second `r` of `order`) would otherwise be
-    // eaten as tone marks and drop a letter. Only words of 4+ keys are checked,
-    // so the tiny Vietnamese undo patterns (`as`, `aa`, `dd`, `aw`) and all
-    // Vietnamese sequences (which are not English words) are unaffected.
-    let english = cfg.mode == Mode::Vi && cfg.smart_english && is_english_raw(raw);
     // The undo exception lets repeated operator keys undo cleanly (`aaa → aa`,
-    // `ass → as`) instead of flipping mid-word to English. It must stay narrow:
-    // an ordinary English word can also end with an operator that happens to
-    // undo an earlier one (`deliveryor` → the second `r`, `order`, `class`,
-    // `staff`). Keep the exception only when the untoned result is still a
-    // Vietnamese syllable/prefix, or when the whole word is a tiny undo pattern.
+    // `ass → as`) instead of flipping mid-word to the literal keystrokes. It must
+    // stay narrow: an ordinary English word can also end with an operator that
+    // happens to undo an earlier one (`deliveryor` → the second `r`, `order`,
+    // `class`, `staff`). Keep the exception only when the untoned result is still
+    // a Vietnamese syllable/prefix, or when the whole word is a tiny undo
+    // pattern.
     let undo_exemption = last_key_undo && (valid || raw.len() <= 3);
+    // Vietnamese-first (UniKey parity): a valid Vietnamese form always wins, no
+    // matter what English word the same keystrokes could spell. English survives
+    // only because it is *not* Vietnamese (`hello`, `meeting`, `google`) or
+    // because the last key was an undo (see above).
     let escaped = cfg.mode == Mode::Vi
         && cfg.smart_english
         && !raw.is_empty()
-        && (english || (!valid && !undo_exemption));
+        && !valid
+        && !undo_exemption;
 
     let word = if escaped {
         raw_string(raw)
@@ -236,13 +260,17 @@ fn render_word_into(
         }
     };
 
-    (tone, word, escaped)
+    Rendered {
+        word,
+        escaped,
+        standalone_w,
+    }
 }
 
 /// The DoctKey composition engine.
 ///
 /// One instance represents one IME process: configuration (mode, method, tone
-/// style, smart English) is engine-wide, while the composition state is cleared
+/// style, literal fallback) is engine-wide, while the composition state is cleared
 /// by [`Engine::reset`].
 #[derive(Clone, Debug)]
 pub struct Engine {
@@ -297,9 +325,9 @@ impl Engine {
         if self.raw.is_empty() {
             self.shown.clear();
         } else {
-            let (_, word, _) = render_word_into(&self.cfg, &self.raw, &mut self.letters_buf);
+            let rendered = render_word_into(&self.cfg, &self.raw, &mut self.letters_buf);
             self.shown.clear();
-            self.shown.push_str(&word);
+            self.shown.push_str(&rendered.word);
         }
     }
 
@@ -487,7 +515,9 @@ impl Engine {
 
     /// Re-render after a raw key changed and produce append/replace.
     fn after_change(&mut self) -> KeyResult {
-        let (_, new_word, escaped) = render_word_into(&self.cfg, &self.raw, &mut self.letters_buf);
+        let rendered = render_word_into(&self.cfg, &self.raw, &mut self.letters_buf);
+        let new_word = rendered.word;
+        let escaped = rendered.escaped;
         let (op, text) = if let Some(suffix) = new_word.strip_prefix(self.shown.as_str()) {
             // First key of a word: `self.shown` is "" so this appends the whole word.
             (Op::Append, suffix.to_owned())
@@ -513,15 +543,23 @@ impl Engine {
     }
 
     /// Try to use a VNI digit as an operator; fall back to a break character
-    /// when it cannot act or when smart English has escaped the word.
+    /// when it cannot act (SPEC §5.2).
+    ///
+    /// Applicability is decided by *simulation*: the digit only acts when it
+    /// changes the rendered word and the result is Vietnamese. That keeps the
+    /// retroactive quality marks working (`vie` + `6` → `viê`, `thuo` + `7` →
+    /// `thuơ`) while digits after English or after an impossible target stay
+    /// literal (`abc` + `1`, `a9`, `qu` + `1`).
     fn vni_digit(&mut self, ch: char) -> KeyResult {
         if self.raw.is_empty() {
             return self.pass();
         }
-        let (tone, _, escaped) = render_word_into(&self.cfg, &self.raw, &mut self.letters_buf);
-        let applicable = !escaped
-            && vni::digit_applicable(&self.letters_buf, tone, ch, self.cfg.tone_style);
-        if !applicable {
+        let before = render_word_into(&self.cfg, &self.raw, &mut self.letters_buf);
+        let mut probe_raw = self.raw.clone();
+        probe_raw.push(RawKey::new(ch, false));
+        let mut probe_letters = Vec::with_capacity(16);
+        let after = render_word_into(&self.cfg, &probe_raw, &mut probe_letters);
+        if after.escaped || after.word == before.word {
             return self.break_char();
         }
         self.raw.push(RawKey::new(ch, false));
@@ -539,10 +577,11 @@ impl Engine {
 
     /// Replace the visible composition with the recomputed word (may be empty).
     fn after_replace(&mut self) -> KeyResult {
-        let (_, word, escaped) = render_word_into(&self.cfg, &self.raw, &mut self.letters_buf);
+        let rendered = render_word_into(&self.cfg, &self.raw, &mut self.letters_buf);
+        let word = rendered.word;
         self.shown.clear();
         self.shown.push_str(&word);
-        let raw = if escaped {
+        let raw = if rendered.escaped {
             word.clone()
         } else {
             raw_string(&self.raw)
@@ -596,7 +635,17 @@ impl Engine {
 
     /// End the composition, inserting `text` where it was.
     fn commit_composition(&mut self, consumed: bool) -> KeyResult {
-        let text = std::mem::take(&mut self.shown);
+        let mut text = std::mem::take(&mut self.shown);
+        // A standalone `w` that became `ư` + `o` at the end of the word (`tw` +
+        // `o` → `tưo`) is not Vietnamese — that shape only exists while a coda
+        // is still coming (`người`, `được`). Give the key back so `two` commits
+        // as `two`; the `ưo` variants of real words are never word-final.
+        if !self.raw.is_empty() {
+            let rendered = render_word_into(&self.cfg, &self.raw, &mut self.letters_buf);
+            if rendered.standalone_w.is_some() && ends_with_blind_horn_o(&self.letters_buf) {
+                text = raw_string(&self.raw);
+            }
+        }
         self.raw.clear();
         KeyResult {
             op: Op::Commit,
@@ -910,16 +959,75 @@ mod tests {
         assert_eq!(engine.feed_key(1).op, Op::Pass);
     }
 
+    /// Priority is Vietnamese-first, exactly like UniKey: the same keystrokes
+    /// produce the Vietnamese syllable whenever they *are* a Vietnamese spelling.
     #[test]
-    fn smart_english_fallback() {
-        assert_eq!(word_of(TELEX_VI, "hello"), "hello");
-        assert_eq!(word_of(TELEX_VI, "meeting"), "meeting");
-        assert_eq!(word_of(TELEX_VI, "confirm"), "confirm");
-        assert_eq!(word_of(TELEX_VI, "text"), "text");
-        assert_eq!(word_of(TELEX_VI, "test"), "test");
-        assert_eq!(word_of(TELEX_VI, "choose"), "choose");
-        assert_eq!(word_of(TELEX_VI, "church"), "church");
-        assert_eq!(word_of(TELEX_VI, "boring"), "boring");
+    fn vietnamese_spelling_beats_the_english_reading() {
+        for (keys, expected) in [
+            ("test", "tét"),
+            ("best", "bét"),
+            ("cost", "cót"),
+            ("reset", "rết"),
+            ("sense", "sến"),
+            ("tense", "tến"),
+            ("dense", "dến"),
+            ("deed", "đê"),
+            ("most", "mót"),
+            ("this", "thí"),
+            ("there", "thể"),
+            ("these", "thế"),
+            ("here", "hể"),
+            ("queen", "quên"),
+            ("chair", "chải"),
+            ("treen", "trên"),
+            ("texts", "tét"),
+        ] {
+            assert_eq!(word_of(TELEX_VI, keys), expected, "keys {keys:?}");
+        }
+        // Smart off keeps the same Vietnamese rendering for these.
+        assert_eq!(word_of(TELEX_VI_NO_SMART, "test"), "tét");
+    }
+
+    /// English only survives when the keystrokes cannot be Vietnamese.
+    #[test]
+    fn english_words_that_are_not_vietnamese_stay_literal() {
+        for word in [
+            "hello",
+            "meeting",
+            "looks",
+            "google",
+            "confirm",
+            "fresh",
+            "world",
+            "church",
+            "boring",
+            "choose",
+            "order",
+            "class",
+            "staff",
+            "deliveryor",
+            "hardware",
+            "message",
+            "business",
+            "software",
+            "directory",
+            "different",
+            "current",
+            "commission",
+            // `text` would be `tẽt`, but `~` cannot precede `t` (SPEC §5.3).
+            "text",
+            // UniKey's `w → ư` must not eat `sweet` either.
+            "sweet",
+            "twelve",
+            "between",
+        ] {
+            assert_eq!(word_of(TELEX_VI, word), word, "word {word:?}");
+        }
+        // `tw` + `o` is a `ưo` only while a coda is still coming (`người`), so
+        // `two` is given back when the word ends (see `commit`).
+        let mut engine = new_engine(TELEX_VI);
+        type_keys(&mut engine, "two");
+        assert_eq!(engine.commit().text, "two");
         assert_eq!(word_of(TELEX_VI_NO_SMART, "looks"), "lốk");
         assert_eq!(word_of(TELEX_VI_NO_SMART, "confirm"), "conỉm");
         // Undo literals keep the Vietnamese rendering even when invalid.
@@ -1223,6 +1331,23 @@ mod tests {
         for (keys, expected) in [
             ("been", "bên"),
             ("teen", "tên"),
+            ("treen", "trên"),
+            ("chaus", "cháu"),
+            ("quar", "quả"),
+            ("hoon", "hôn"),
+            ("khar", "khả"),
+            ("char", "chả"),
+            ("thar", "thả"),
+            ("khir", "khỉ"),
+            ("toon", "tôn"),
+            ("ghee", "ghê"),
+            ("phos", "phó"),
+            ("phoo", "phô"),
+            ("thow", "thơ"),
+            ("thoo", "thô"),
+            ("quis", "quí"),
+            ("naos", "náo"),
+            ("reen", "rên"),
             ("mootj", "một"),
             ("toots", "tốt"),
             ("teets", "tết"),
@@ -1274,46 +1399,6 @@ mod tests {
             ("theme", "thêm"),
         ] {
             assert_eq!(word_of(TELEX_VI, keys), expected, "keys={keys:?}");
-        }
-    }
-
-    #[test]
-    fn common_english_words_still_stay_english() {
-        for word in [
-            "test",
-            "text",
-            "texts",
-            "best",
-            "cost",
-            "choose",
-            "church",
-            "boring",
-            "data",
-            "reset",
-            "sense",
-            "tense",
-            "dense",
-            "meter",
-            "motor",
-            "photo",
-            "piece",
-            "meme",
-            "gene",
-            "users",
-            "before",
-            "deed",
-            "died",
-            "dude",
-            "there",
-            "these",
-            "here",
-            "user",
-            "order",
-            "deliveryorder",
-            "hardware",
-            "message",
-        ] {
-            assert_eq!(word_of(TELEX_VI, word), word, "word={word:?}");
         }
     }
 }

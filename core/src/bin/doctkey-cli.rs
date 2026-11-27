@@ -28,7 +28,7 @@ USAGE:
 OPTIONS:
     --method telex|vni          Input method (default: telex)
     --mode vi|en                Language mode (default: vi)
-    --smart 0|1                 Smart English fallback (default: 1)
+    --smart 0|1                 Literal fallback when not Vietnamese (default: 1)
     --tone modern|traditional   Tone placement style (default: modern)
     --keys <KEYS>               Simulate KEYS and print the final document text
     --repl                      Interactive per-keystroke display

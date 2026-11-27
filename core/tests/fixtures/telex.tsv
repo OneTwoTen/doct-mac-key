@@ -69,3 +69,44 @@ telex,vi,1,modern	quowr	quở
 telex,vi,1,modern	thuowr	thuở
 telex,vi,1,modern	huow	huơ
 telex,vi,1,modern	xinee	xinê
+
+# The natural Telex spelling of a common word must beat an obscure English
+# dictionary entry. `treen` (an archaic word for woodenware) used to stay
+# literal, so `trên` was impossible to type in smart mode.
+telex,vi,1,modern	treen	trên
+telex,vi,1,modern	treen nam	trên nam
+telex,vi,1,modern	chaus	cháu
+telex,vi,1,modern	quar	quả
+telex,vi,1,modern	hoon	hôn
+telex,vi,1,modern	khar	khả
+telex,vi,1,modern	char	chả
+telex,vi,1,modern	thar	thả
+telex,vi,1,modern	khir	khỉ
+telex,vi,1,modern	toon	tôn
+telex,vi,1,modern	ghee	ghê
+telex,vi,1,modern	phos	phó
+telex,vi,1,modern	phoo	phô
+telex,vi,1,modern	thow	thơ
+telex,vi,1,modern	thoo	thô
+telex,vi,1,modern	quis	quí
+telex,vi,1,modern	naos	náo
+telex,vi,1,modern	reen	rên
+# Vietnamese wins even when the keystrokes also spell a common English word.
+telex,vi,1,modern	this	thí
+telex,vi,1,modern	queen	quên
+telex,vi,1,modern	chair	chải
+telex,vi,1,modern	roof	rồ
+telex,vi,1,modern	lots	lót
+
+# UniKey's standalone `w` → `ư` shorthand
+telex,vi,1,modern	tw	tư
+telex,vi,1,modern	dw	dư
+telex,vi,1,modern	nw	nư
+telex,vi,1,modern	chw	chư
+telex,vi,1,modern	trw	trư
+telex,vi,1,modern	ngw	ngư
+telex,vi,1,modern	kw	kw
+telex,vi,1,modern	ew	ew
+telex,vi,1,modern	new	new
+telex,vi,1,modern	threw	threw
+telex,vi,1,modern	few	few

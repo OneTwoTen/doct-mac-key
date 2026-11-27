@@ -1,5 +1,9 @@
-# DoctKey acceptance fixtures — smart English fallback (and smart off).
+# DoctKey acceptance fixtures — literal fallback (and smart off).
 # Format: method,mode,smart,tone_style <TAB> keys <TAB> expected document text
+#
+# Priority is Vietnamese-first, like UniKey: keystrokes that spell a Vietnamese
+# syllable become Vietnamese even when they also spell an English word. English
+# survives only when the keystrokes cannot be Vietnamese.
 
 # smart ON: words that cannot be Vietnamese fall back to the literal keystrokes
 telex,vi,1,modern	hello	hello
@@ -16,13 +20,25 @@ telex,vi,1,modern	delivery order	delivery order
 telex,vi,1,modern	order	order
 telex,vi,1,modern	class	class
 telex,vi,1,modern	staff	staff
-# smart ON: known English words keep their letters (no tone mark eats a key)
+# smart ON: a Vietnamese spelling always wins, exactly like UniKey
+telex,vi,1,modern	test	tét
+telex,vi,1,modern	best	bét
+telex,vi,1,modern	this	thí
+telex,vi,1,modern	there	thể
+telex,vi,1,modern	these	thế
+telex,vi,1,modern	queen	quên
+telex,vi,1,modern	chair	chải
+telex,vi,1,modern	treen	trên
+# ... and English is kept only when it cannot be Vietnamese
 telex,vi,1,modern	text	text
-telex,vi,1,modern	test	test
-telex,vi,1,modern	best	best
 telex,vi,1,modern	choose	choose
 telex,vi,1,modern	church	church
 telex,vi,1,modern	boring	boring
+# UniKey's `w → ư` must not eat English: `sweet` gives the key back at once,
+# `two` gives it back when the word ends (`ưo` only exists before a coda).
+telex,vi,1,modern	sweet	sweet
+telex,vi,1,modern	two	two
+telex,vi,1,modern	twelve	twelve
 # smart ON: valid Vietnamese is kept (even if the keystrokes were accidental)
 telex,vi,1,modern	vieejt	việt
 # smart OFF: the same keystrokes are always transformed
