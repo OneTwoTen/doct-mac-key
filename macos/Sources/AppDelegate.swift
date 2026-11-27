@@ -393,9 +393,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         updater?.installAvailableUpdate { [weak self] error in
             guard let error else { return }
-            self?.showUpdaterAlert(title: "Cập nhật DoctKey thất bại",
-                                   message: error,
-                                   style: .warning)
+            self?.showInstallFailure(error)
+        }
+    }
+
+    /// Updating replaces the bundle that is installed in the system. When DoctKey
+    /// was launched from the repository build instead, explain that and offer to
+    /// switch to the installed copy where the update can actually be applied.
+    private func showInstallFailure(_ error: AutoUpdater.InstallError) {
+        let alert = NSAlert()
+        alert.messageText = "Cập nhật DoctKey thất bại"
+        alert.informativeText = error.message
+        alert.alertStyle = .warning
+
+        guard let installedPath = error.installedPath else {
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+            return
+        }
+
+        alert.addButton(withTitle: "Chuyển sang bản đã cài")
+        alert.addButton(withTitle: "Để sau")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = false
+        NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: installedPath),
+                                           configuration: configuration) { [weak self] _, launchError in
+            guard launchError == nil else {
+                self?.showUpdaterAlert(title: "Không mở được bản đã cài",
+                                       message: "Hãy mở thủ công:\n\(installedPath)",
+                                       style: .warning)
+                return
+            }
+            // Only one DoctKey should own the menu bar, and update checks are
+            // meaningful only from the installed copy.
+            NSApp.terminate(nil)
         }
     }
 

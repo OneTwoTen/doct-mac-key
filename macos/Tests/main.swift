@@ -1133,6 +1133,88 @@ do {
     }
 }
 
+// MARK: - AutoUpdater release feed selection
+//
+// A GitHub release can exist without a DoctKey ZIP (for example one created
+// from the UI or from a merged pull request). The updater must skip such a
+// release and fall back to the newest older release that actually ships a
+// package, instead of failing every update check.
+
+func decodeReleases(_ json: String) -> [AutoUpdater.Release] {
+    (try? JSONDecoder().decode([AutoUpdater.Release].self, from: Data(json.utf8))) ?? []
+}
+
+func downloadURL(_ tag: String, _ name: String) -> String {
+    "https://github.com/OneTwoTen/doct-mac-key/releases/download/\(tag)/\(name)"
+}
+
+do {
+    let assetless = decodeReleases("""
+    [
+      {"tag_name":"v0.2.2","draft":false,"prerelease":false,"assets":[]},
+      {"tag_name":"v0.2.1","draft":false,"prerelease":false,"assets":[
+        {"name":"DoctKey-0.2.1-macos-arm64.zip",
+         "browser_download_url":"\(downloadURL("v0.2.1", "DoctKey-0.2.1-macos-arm64.zip"))"}
+      ]},
+      {"tag_name":"v0.2.0","draft":false,"prerelease":false,"assets":[
+        {"name":"DoctKey-0.2.0-macos-arm64.zip",
+         "browser_download_url":"\(downloadURL("v0.2.0", "DoctKey-0.2.0-macos-arm64.zip"))"}
+      ]}
+    ]
+    """)
+    let newest = AutoUpdater.newestPackage(in: assetless)
+    check("updater skips release without asset", newest?.version == "0.2.1",
+          "got=\(newest?.version ?? "nil")")
+    check("updater fallback names the matching package",
+          newest?.asset.name == "DoctKey-0.2.1-macos-arm64.zip",
+          "got=\(newest?.asset.name ?? "nil")")
+    check("updater fallback picks the newest of two valid packages",
+          AutoUpdater.newestPackage(in: assetless.reversed())?.version == "0.2.1")
+    check("updater skips drafts and prereleases",
+          AutoUpdater.newestPackage(in: decodeReleases("""
+          [
+            {"tag_name":"v0.3.0","draft":true,"prerelease":false,"assets":[
+              {"name":"DoctKey-0.3.0-macos-arm64.zip",
+               "browser_download_url":"\(downloadURL("v0.3.0", "DoctKey-0.3.0-macos-arm64.zip"))"}
+            ]},
+            {"tag_name":"v0.2.9","draft":false,"prerelease":true,"assets":[
+              {"name":"DoctKey-0.2.9-macos-arm64.zip",
+               "browser_download_url":"\(downloadURL("v0.2.9", "DoctKey-0.2.9-macos-arm64.zip"))"}
+            ]},
+            {"tag_name":"v0.2.8","draft":false,"prerelease":false,"assets":[
+              {"name":"DoctKey-0.2.8-macos-arm64.zip",
+               "browser_download_url":"\(downloadURL("v0.2.8", "DoctKey-0.2.8-macos-arm64.zip"))"}
+            ]}
+          ]
+          """))?.version == "0.2.8")
+    check("updater rejects asset served from another host",
+          AutoUpdater.newestPackage(in: decodeReleases("""
+          [
+            {"tag_name":"v0.2.1","draft":false,"prerelease":false,"assets":[
+              {"name":"DoctKey-0.2.1-macos-arm64.zip",
+               "browser_download_url":"https://example.com/DoctKey-0.2.1-macos-arm64.zip"}
+            ]}
+          ]
+          """)) == nil)
+    check("updater rejects an asset for a different version",
+          AutoUpdater.newestPackage(in: decodeReleases("""
+          [
+            {"tag_name":"v0.2.1","draft":false,"prerelease":false,"assets":[
+              {"name":"DoctKey-0.2.0-macos-arm64.zip",
+               "browser_download_url":"\(downloadURL("v0.2.0", "DoctKey-0.2.0-macos-arm64.zip"))"}
+            ]}
+          ]
+          """)) == nil)
+    check("updater reports no package when nothing is published",
+          AutoUpdater.newestPackage(in: []) == nil)
+    check("updater version compare is numeric, not lexicographic",
+          AutoUpdater.isVersion("0.2.10", newerThan: "0.2.9")
+          && !AutoUpdater.isVersion("0.2.9", newerThan: "0.2.10"))
+    check("updater version compare handles missing components",
+          AutoUpdater.isVersion("1.0", newerThan: "0.9.9")
+          && !AutoUpdater.isVersion("1.0", newerThan: "1.0.0"))
+}
+
 print("")
 print("Fixture runs: \(passedRuns)/\(totalRuns) passed" +
       (failures.isEmpty ? " (both insert modes)" : ", \(failures.count) failed"))

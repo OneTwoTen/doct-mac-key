@@ -20,7 +20,7 @@ final class AutoUpdater {
         case alreadyChecking
     }
 
-    private struct Release: Decodable {
+    struct Release: Decodable {
         let tagName: String
         let draft: Bool
         let prerelease: Bool
@@ -34,7 +34,7 @@ final class AutoUpdater {
         }
     }
 
-    private struct Asset: Decodable {
+    struct Asset: Decodable {
         let name: String
         let browserDownloadURL: URL
 
@@ -66,7 +66,7 @@ final class AutoUpdater {
         isChecking = true
         statusChanged(.checking)
 
-        var request = URLRequest(url: URL(string: "https://api.github.com/repos/\(Self.repository)/releases/latest")!)
+        var request = URLRequest(url: URL(string: "https://api.github.com/repos/\(Self.repository)/releases?per_page=30")!)
         request.timeoutInterval = 20
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("DoctKey-Updater", forHTTPHeaderField: "User-Agent")
@@ -85,20 +85,22 @@ final class AutoUpdater {
                 result = .failed("GitHub trả về mã HTTP \(response.statusCode).")
             } else if let data {
                 do {
-                    let release = try JSONDecoder().decode(Release.self, from: data)
-                    let version = Self.normalizedVersion(release.tagName)
-                    let expectedAssetName = "DoctKey-\(version)-macos-arm64.zip"
-                    guard !release.draft, !release.prerelease,
-                          let asset = release.assets.first(where: { $0.name == expectedAssetName }),
-                          Self.isTrustedReleaseURL(asset.browserDownloadURL) else {
-                        throw UpdateError.invalidRelease
+                    let releases = try JSONDecoder().decode([Release].self, from: data)
+                    // A release can exist without a DoctKey package: a release created
+                    // from the GitHub UI or from a merged pull request has no asset.
+                    // In that case keep looking at older releases that do ship a
+                    // package instead of failing the whole update check.
+                    guard let package = Self.newestPackage(in: releases) else {
+                        throw UpdateError.missingPackage(
+                            latestTag: releases.first(where: { !$0.draft && !$0.prerelease })?.tagName
+                        )
                     }
 
                     let installedVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
-                    if Self.isVersion(version, newerThan: installedVersion) {
-                        matchingRelease = release
-                        matchingAsset = asset
-                        result = .available(version)
+                    if Self.isVersion(package.version, newerThan: installedVersion) {
+                        matchingRelease = package.release
+                        matchingAsset = package.asset
+                        result = .available(package.version)
                     } else {
                         result = .current
                     }
@@ -128,15 +130,42 @@ final class AutoUpdater {
         }.resume()
     }
 
-    func installAvailableUpdate(completion: @escaping (String?) -> Void) {
+    /// Why an update could not be started or installed.
+    ///
+    /// `installedPath` is set when the running bundle is a repository build while
+    /// a copy is installed in the system: the UI can then offer to switch to that
+    /// copy, because only it may be replaced in place.
+    struct InstallError: LocalizedError {
+        let message: String
+        var installedPath: String?
+
+        var errorDescription: String? { message }
+    }
+
+    func installAvailableUpdate(completion: @escaping (InstallError?) -> Void) {
         guard !isInstalling, let release = latestRelease, let asset = latestAsset else {
-            completion("Chưa có bản cập nhật để cài.")
+            completion(InstallError(message: "Chưa có bản cập nhật để cài."))
             return
         }
         guard let installedPath = AppInstallation.installedBundlePath(),
-              AppInstallation.isInstalledPath(installedPath),
-              !AppInstallation.isRepositoryBuild(path: Bundle.main.bundleURL.path) else {
-            completion("Hãy mở DoctKey từ bản đã cài trong hệ thống rồi thử cập nhật.")
+              AppInstallation.isInstalledPath(installedPath) else {
+            completion(InstallError(message: "Chưa có bản DoctKey nào được cài trong hệ thống. Mở Cài đặt → Trạng thái → “Cài / cập nhật vào hệ thống…” rồi thử lại."))
+            return
+        }
+        if AppInstallation.isRepositoryBuild(path: Bundle.main.bundleURL.path) {
+            completion(InstallError(
+                message: """
+                DoctKey đang chạy từ bản build trong repo:
+                \(Bundle.main.bundleURL.path)
+
+                Bản cập nhật chỉ thay thế bản đã cài trong hệ thống:
+                \(installedPath)
+
+                Hãy thoát bản build này, mở bản đã cài rồi kiểm tra cập nhật lại.
+                Bấm “Chuyển sang bản đã cài” để làm việc đó tự động.
+                """,
+                installedPath: installedPath
+            ))
             return
         }
 
@@ -153,7 +182,7 @@ final class AutoUpdater {
                                                    attributes: [.posixPermissions: 0o700])
         } catch {
             isInstalling = false
-            completion("Không tạo được thư mục cập nhật: \(error.localizedDescription)")
+            completion(InstallError(message: "Không tạo được thư mục cập nhật: \(error.localizedDescription)"))
             return
         }
 
@@ -201,7 +230,7 @@ final class AutoUpdater {
                     self.isInstalling = false
                     let message = error.localizedDescription
                     self.statusChanged(.failed(message))
-                    completion(message)
+                    completion(InstallError(message: message))
                 }
             }
         }.resume()
@@ -294,7 +323,43 @@ final class AutoUpdater {
             .replacingOccurrences(of: "^v", with: "", options: .regularExpression)
     }
 
-    private static func isVersion(_ lhs: String, newerThan rhs: String) -> Bool {
+    private static func isPlainVersion(_ value: String) -> Bool {
+        let parts = value.split(separator: ".", omittingEmptySubsequences: false)
+        return !parts.isEmpty && parts.allSatisfy { part in
+            !part.isEmpty && part.allSatisfy(\.isNumber)
+        }
+    }
+
+    /// Newest published release that actually ships a DoctKey package.
+    /// Releases without a matching asset are skipped, so publishing a release
+    /// without the ZIP neither blocks updates nor hides older valid releases.
+    static func newestPackage(in releases: [Release]) -> (release: Release, asset: Asset, version: String)? {
+        var best: (release: Release, asset: Asset, version: String)?
+        for release in releases where !release.draft && !release.prerelease {
+            guard let candidate = package(in: release) else { continue }
+            if let current = best, !isVersion(candidate.version, newerThan: current.version) {
+                continue
+            }
+            best = (release: release, asset: candidate.asset, version: candidate.version)
+        }
+        return best
+    }
+
+    /// The `DoctKey-<version>-macos-arm64.zip` asset attached to one release,
+    /// if its name matches the tag and it is served from this repository.
+    static func package(in release: Release) -> (asset: Asset, version: String)? {
+        let version = normalizedVersion(release.tagName)
+        guard isPlainVersion(version) else { return nil }
+        let exact = "DoctKey-\(version)-macos-arm64.zip"
+        let asset = release.assets.first(where: { $0.name == exact })
+            ?? release.assets.first(where: {
+                $0.name.hasPrefix("DoctKey-\(version)") && $0.name.hasSuffix("-macos-arm64.zip")
+            })
+        guard let asset, isTrustedReleaseURL(asset.browserDownloadURL) else { return nil }
+        return (asset: asset, version: version)
+    }
+
+    static func isVersion(_ lhs: String, newerThan rhs: String) -> Bool {
         func components(_ value: String) -> [Int]? {
             let core = normalizedVersion(value).split(separator: "-", maxSplits: 1).first.map(String.init) ?? value
             let parts = core.split(separator: ".")
@@ -318,7 +383,7 @@ final class AutoUpdater {
     }
 
     private enum UpdateError: LocalizedError {
-        case invalidRelease
+        case missingPackage(latestTag: String?)
         case downloadFailed
         case invalidArchive
         case invalidBundle
@@ -329,7 +394,13 @@ final class AutoUpdater {
 
         var errorDescription: String? {
             switch self {
-            case .invalidRelease: return "Bản phát hành không có gói DoctKey hợp lệ."
+            case .missingPackage(let tag):
+                guard let tag else {
+                    return "Chưa có bản phát hành DoctKey nào trên GitHub."
+                }
+                let version = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .replacingOccurrences(of: "^v", with: "", options: .regularExpression)
+                return "Bản phát hành \(tag) trên GitHub chưa đính kèm gói DoctKey-\(version)-macos-arm64.zip."
             case .downloadFailed: return "Không tải được gói cập nhật từ GitHub."
             case .invalidArchive: return "Gói cập nhật rỗng hoặc có kích thước không hợp lệ."
             case .invalidBundle: return "Gói tải về không phải DoctKey hoặc sai phiên bản."

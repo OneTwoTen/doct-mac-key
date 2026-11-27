@@ -37,8 +37,16 @@ TAG="v$VERSION"
 APP="$ROOT/build/DoctKey.app"
 ARCHIVE="$ROOT/build/DoctKey-$VERSION-macos-arm64.zip"
 
+ASSET_NAME="$(basename "$ARCHIVE")"
+
 if gh release view "$TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then
   echo "error: release $TAG already exists" >&2
+  EXISTING_ASSETS="$(gh release view "$TAG" --repo "$REPOSITORY" \
+    --json assets --jq '.assets[].name' 2>/dev/null || true)"
+  if ! grep -Fxq "$ASSET_NAME" <<<"$EXISTING_ASSETS"; then
+    echo "note: $TAG ships no $ASSET_NAME, so installed DoctKey builds cannot update from it" >&2
+    echo "hint: attach the package with: gh release upload $TAG $ARCHIVE --repo $REPOSITORY" >&2
+  fi
   exit 1
 fi
 
@@ -58,5 +66,14 @@ gh release create "$TAG" "$ARCHIVE" \
   --repo "$REPOSITORY" \
   --title "DoctKey $VERSION" \
   --notes "DoctKey Vietnamese input method for macOS. This release is published outside the Apple App Store."
+
+echo "==> verifying the published package"
+PUBLISHED_ASSETS="$(gh release view "$TAG" --repo "$REPOSITORY" \
+  --json assets --jq '.assets[].name' 2>/dev/null || true)"
+if ! grep -Fxq "$ASSET_NAME" <<<"$PUBLISHED_ASSETS"; then
+  echo "error: $TAG was published without $ASSET_NAME; installed DoctKey builds cannot update from it" >&2
+  echo "hint: attach the package with: gh release upload $TAG $ARCHIVE --repo $REPOSITORY" >&2
+  exit 1
+fi
 
 echo "Published: https://github.com/$REPOSITORY/releases/tag/$TAG"

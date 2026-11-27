@@ -83,8 +83,15 @@ make release VERSION=0.2.1
 
 Lệnh phát hành cần GitHub CLI đã đăng nhập (`gh auth login`) và chứng chỉ **Apple
 Development** hoặc **Developer ID Application** trong Keychain. Nó tạo app đã ký, đóng
-gói `DoctKey-<version>-macos-arm64.zip` rồi tải lên GitHub Releases. Người dùng đã cài
-DoctKey sẽ nhận được bản mới qua bộ cập nhật tích hợp.
+gói `DoctKey-<version>-macos-arm64.zip` rồi tải lên GitHub Releases và kiểm tra lại rằng
+gói đã thực sự nằm trong bản phát hành. Người dùng đã cài DoctKey sẽ nhận được bản mới
+qua bộ cập nhật tích hợp.
+
+> **Quan trọng:** bộ cập nhật chỉ nhận bản phát hành có đính kèm
+> `DoctKey-<version>-macos-arm64.zip` (đúng phiên bản trong tag). Bản phát hành tạo tay
+> trên GitHub UI hoặc từ pull request không có gói này sẽ không dùng để cập nhật được —
+> hãy tạo bằng `make release` hoặc tải gói lên bằng
+> `gh release upload vX.Y.Z build/DoctKey-X.Y.Z-macos-arm64.zip`.
 
 ### Cài cho riêng người dùng (macOS cũ hơn)
 
@@ -268,6 +275,8 @@ cargo run --manifest-path core/Cargo.toml --bin doctkey-cli -- --repl
 | Không gõ được trong Terminal / VSCode / một số app | Đổi `insert_mode` sang `direct` trong config rồi nạp lại (`⌃⌥R`). |
 | App không chạy / menu bar không hiện | `pkill -f DoctKey` rồi chọn lại bộ gõ; xem log: `log stream --predicate 'process == "DoctKey"'`. |
 | macOS báo app không hợp lệ / chặn chữ ký | Ký bằng chứng chỉ Apple Development/Developer ID: `SIGN_ID="..." make install`. |
+| Menu báo *“Không kiểm tra được cập nhật — Bản phát hành … chưa đính kèm gói DoctKey-…zip”* | Bản phát hành mới nhất trên GitHub không có gói ZIP (thường do tạo bằng GitHub UI hoặc từ pull request). Đính kèm gói đã ký cùng tên `DoctKey-<version>-macos-arm64.zip` (`gh release upload vX.Y.Z build/DoctKey-X.Y.Z-macos-arm64.zip`) rồi kiểm tra lại; bộ cập nhật tự bỏ qua bản phát hành thiếu gói và lùi về bản cũ hơn có gói hợp lệ. |
+| Bấm **Cập nhật** nhưng báo *“Cập nhật DoctKey thất bại — DoctKey đang chạy từ bản build trong repo”* | Bản cập nhật chỉ thay thế app **đã cài** (`/Library/Input Methods` hoặc `~/Library/Input Methods`), không thay bản `build/DoctKey.app`. Thoát bản build rồi mở bản đã cài (`open "/Library/Input Methods/DoctKey.app"`), hoặc bấm **Chuyển sang bản đã cài** trong hộp thoại để app tự làm việc đó. |
 | Muốn gỡ hoàn toàn | `make uninstall`, sau đó xoá DoctKey trong System Settings → Input Sources. |
 
 ## Cấu trúc dự án
