@@ -12,6 +12,7 @@
 use serde_json::Value;
 
 use crate::config::{Config, Method, Mode};
+use crate::english;
 use crate::letters::{
     normalize_u_o, quality_string, raw_string, render, Letter, Quality, RawKey, Tone,
 };
@@ -139,6 +140,24 @@ fn is_valid_vietnamese_letters(letters: &[Letter]) -> bool {
     syllable::is_valid_or_prefix(&quality_string(letters))
 }
 
+/// Whether the raw keystrokes are a known English collision (SPEC §5.5).
+///
+/// Only lowercase ASCII letters are considered: a VNI digit means the word is
+/// not a plain English spelling.
+fn is_english_raw(raw: &[RawKey]) -> bool {
+    if raw.is_empty() || raw.len() > english::MAX_WORD_LEN {
+        return false;
+    }
+    let mut buf = [0u8; english::MAX_WORD_LEN];
+    for (dst, key) in buf.iter_mut().zip(raw.iter()) {
+        if !key.ch.is_ascii_lowercase() {
+            return false;
+        }
+        *dst = key.ch as u8;
+    }
+    std::str::from_utf8(&buf[..raw.len()]).is_ok_and(english::is_english)
+}
+
 fn has_forbidden_checked_tone(letters: &[Letter], tone: Option<Tone>) -> bool {
     if !matches!(tone, Some(Tone::Grave | Tone::Hook | Tone::Tilde)) {
         return false;
@@ -186,9 +205,20 @@ fn vietnamese_after_horn(next: Option<&Letter>) -> bool {
 ///
 /// Priority is Vietnamese-first, the way UniKey behaves: whenever the untoned
 /// form is a Vietnamese syllable/prefix, its rendering wins — even when the same
-/// keystrokes spell an English word (`test → tét`, `this → thí`). Only a form
-/// that cannot be Vietnamese falls back to the literal keystrokes, which is what
-/// keeps `hello`, `meeting` or `google` intact.
+/// keystrokes spell an English word (`treen → trên`, `queen → quên`). Two things
+/// give English back, both in Vietnamese mode with the smart fallback on:
+///
+/// * the **consonant-cluster rule** (see [`telex::replay`]): a tone key inside an
+///   English cluster can never be a Telex operator, so `best`, `test`, `first`,
+///   `text` keep their letters without needing a word list;
+/// * the **English collision list** ([`english`]): a curated list of common
+///   English words whose Vietnamese reading is *not* a common Vietnamese word
+///   (`this`, `does`, `door`, `down`, `wrong`, `photo`). Keystrokes that spell a
+///   common Vietnamese word stay Vietnamese (`these → thế`, `there → thể`,
+///   `been → bên`), which is the documented Vietnamese-first rule.
+///
+/// A form that cannot be Vietnamese always falls back to the literal keystrokes,
+/// which is what keeps `hello`, `meeting` or `google` intact.
 ///
 /// The fallback has one exception — "keep the Vietnamese rendering even though
 /// it is not valid" — which is deliberately narrow: it applies only when the
@@ -205,6 +235,7 @@ fn render_word_into(cfg: &Config, raw: &[RawKey], letters: &mut Vec<Letter>) -> 
         Method::Telex => telex::replay(
             raw,
             cfg.tone_style,
+            cfg.mode == Mode::Vi && cfg.smart_english,
             letters,
             &mut tone,
             &mut last_key_undo,
@@ -239,15 +270,20 @@ fn render_word_into(cfg: &Config, raw: &[RawKey], letters: &mut Vec<Letter>) -> 
     // a Vietnamese syllable/prefix, or when the whole word is a tiny undo
     // pattern.
     let undo_exemption = last_key_undo && (valid || raw.len() <= 3);
-    // Vietnamese-first (UniKey parity): a valid Vietnamese form always wins, no
-    // matter what English word the same keystrokes could spell. English survives
-    // only because it is *not* Vietnamese (`hello`, `meeting`, `google`) or
-    // because the last key was an undo (see above).
+    // A known English collision keeps its literal keystrokes even when the same
+    // keys also spell a Vietnamese syllable (`best` is fixed by the cluster rule,
+    // but `this`, `does`, `door`, `down` need the list). The list only contains
+    // words whose Vietnamese reading is not a common Vietnamese word, so
+    // Vietnamese-first still wins for `trên`, `thế`, `thể`, `quên`, `chải`…
+    let english = cfg.mode == Mode::Vi && cfg.smart_english && is_english_raw(raw);
+    // Vietnamese-first (UniKey parity): a valid Vietnamese form wins, unless the
+    // keystrokes are a known English collision. English also survives because it
+    // is *not* Vietnamese (`hello`, `meeting`, `google`) or because the last key
+    // was an undo (see above).
     let escaped = cfg.mode == Mode::Vi
         && cfg.smart_english
         && !raw.is_empty()
-        && !valid
-        && !undo_exemption;
+        && (english || (!valid && !undo_exemption));
 
     let word = if escaped {
         raw_string(raw)
@@ -959,33 +995,71 @@ mod tests {
         assert_eq!(engine.feed_key(1).op, Op::Pass);
     }
 
-    /// Priority is Vietnamese-first, exactly like UniKey: the same keystrokes
-    /// produce the Vietnamese syllable whenever they *are* a Vietnamese spelling.
+    /// The reported regression: a tone key inside an English consonant cluster
+    /// (`st`, `rt`, `xt`, …) can never be a Vietnamese operator, so the word
+    /// keeps its letters instead of losing one to a tone mark.
     #[test]
-    fn vietnamese_spelling_beats_the_english_reading() {
+    fn english_consonant_clusters_keep_the_tone_key_as_a_letter() {
+        for word in [
+            "best", "test", "rest", "nest", "lest", "pest", "vest", "chest", "quest", "guest",
+            "list", "last", "lost", "most", "must", "post", "cost", "host", "past", "first",
+            "sort", "part", "form", "word", "work", "world", "arm", "art", "wrist", "internet",
+        ] {
+            assert_eq!(word_of(TELEX_VI, word), word, "word {word:?}");
+        }
+        // The same letters with the tone key typed last are still Vietnamese.
         for (keys, expected) in [
-            ("test", "tét"),
-            ("best", "bét"),
-            ("cost", "cót"),
-            ("reset", "rết"),
-            ("sense", "sến"),
-            ("tense", "tến"),
-            ("dense", "dến"),
-            ("deed", "đê"),
-            ("most", "mót"),
-            ("this", "thí"),
-            ("there", "thể"),
-            ("these", "thế"),
-            ("here", "hể"),
-            ("queen", "quên"),
-            ("chair", "chải"),
-            ("treen", "trên"),
-            ("texts", "tét"),
+            ("bets", "bét"),
+            ("lits", "lít"),
+            ("quets", "quét"),
+            ("chets", "chét"),
+            ("mots", "mót"),
         ] {
             assert_eq!(word_of(TELEX_VI, keys), expected, "keys {keys:?}");
         }
-        // Smart off keeps the same Vietnamese rendering for these.
+        // Smart off is pure Telex: the cluster rule does not run.
         assert_eq!(word_of(TELEX_VI_NO_SMART, "test"), "tét");
+        assert_eq!(word_of(TELEX_VI_NO_SMART, "best"), "bét");
+    }
+
+    /// A known English collision wins when its Vietnamese reading is obscure.
+    #[test]
+    fn english_collisions_keep_their_letters() {
+        for word in [
+            "this", "those", "does", "goes", "door", "down", "says", "wrong", "photo", "here",
+            "hero", "virus", "roof", "box", "was", "how", "now", "see", "his", "data", "tense",
+            "dense",
+        ] {
+            assert_eq!(word_of(TELEX_VI, word), word, "word {word:?}");
+        }
+    }
+
+    /// Priority stays Vietnamese-first whenever the Vietnamese reading is a
+    /// common Vietnamese word — the documented trade-off (SPEC §5.5).
+    #[test]
+    fn common_vietnamese_spellings_beat_the_english_reading() {
+        for (keys, expected) in [
+            ("these", "thế"),
+            ("there", "thể"),
+            ("been", "bên"),
+            ("queen", "quên"),
+            ("chair", "chải"),
+            ("cats", "cát"),
+            ("hats", "hát"),
+            ("sets", "sét"),
+            ("lots", "lót"),
+            ("songs", "sóng"),
+            ("sense", "sến"),
+            ("seen", "sên"),
+            ("reset", "rết"),
+            ("hair", "hải"),
+            ("theme", "thêm"),
+            ("teen", "tên"),
+            ("treen", "trên"),
+            ("deed", "đê"),
+        ] {
+            assert_eq!(word_of(TELEX_VI, keys), expected, "keys {keys:?}");
+        }
     }
 
     /// English only survives when the keystrokes cannot be Vietnamese.

@@ -16,6 +16,8 @@
 //! * [`tone`] — tone-mark placement rules (SPEC §5.3).
 //! * [`syllable`] — Vietnamese syllable validity used by the literal fallback
 //!   (SPEC §5.5).
+//! * [`english`] — the curated English-collision list used by the literal
+//!   fallback (SPEC §5.5).
 //! * [`engine`] — the per-word state machine: raw keystrokes in, results out.
 //! * [`sim`] — reference host simulation used by tests and the CLI (SPEC §6).
 //! * [`ffi`] — the `extern "C"` layer (the only module with `unsafe` code).
@@ -40,6 +42,7 @@
 
 pub mod config;
 pub mod engine;
+pub mod english;
 pub mod letters;
 pub mod sim;
 pub mod syllable;

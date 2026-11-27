@@ -91,12 +91,16 @@ telex,vi,1,modern	thoo	thô
 telex,vi,1,modern	quis	quí
 telex,vi,1,modern	naos	náo
 telex,vi,1,modern	reen	rên
-# Vietnamese wins even when the keystrokes also spell a common English word.
-telex,vi,1,modern	this	thí
+# Vietnamese wins when the Vietnamese reading is a common word, even if the
+# keystrokes also spell an English word (`core/src/english.rs` explains why
+# `this`/`roof` are in the English list and these are not).
 telex,vi,1,modern	queen	quên
 telex,vi,1,modern	chair	chải
-telex,vi,1,modern	roof	rồ
 telex,vi,1,modern	lots	lót
+telex,vi,1,modern	cats	cát
+telex,vi,1,modern	songs	sóng
+telex,vi,1,modern	these	thế
+telex,vi,1,modern	there	thể
 
 # UniKey's standalone `w` → `ư` shorthand
 telex,vi,1,modern	tw	tư

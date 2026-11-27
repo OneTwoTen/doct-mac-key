@@ -22,10 +22,14 @@ hỗ trợ **Telex**, **VNI**, chế độ **tiếng Việt / tiếng Anh**, chu
 - **VNI**: dấu `1 2 3 4 5`, `0` xoá dấu, `6` â/ê/ô, `7` ơ/ư, `8` ă, `9` đ.
 - **Đặt dấu thông minh**: `tiếng`, `đường`, `người`, `hoà`/`hòa`, `thuỷ`/`thủy` (kiểu mới / kiểu cũ),
   xử lý đúng `qu`, `gi`, nguyên âm đôi/ba, âm cuối.
-- **Ưu tiên tiếng Việt như UniKey**: cách gõ nào tạo được âm tiết Việt thì ra tiếng
-  Việt (`test→tét`, `this→thí`, `queen→quên`, `treen→trên`); từ tiếng Anh chỉ giữ
-  nguyên khi không thể là tiếng Việt (`hello`, `meeting`, `google`, `text`).
-  Muốn gõ tiếng Anh đúng từng chữ thì chuyển chế độ EN bằng `⌃⌥V`.
+- **Ưu tiên tiếng Việt, nhưng không bẻ từ tiếng Anh**: cách gõ nào tạo được **từ
+  Việt phổ biến** thì ra tiếng Việt (`queen→quên`, `chair→chải`, `treen→trên`,
+  `these→thế`); từ tiếng Anh được giữ nguyên khi không thể là tiếng Việt
+  (`hello`, `meeting`, `google`) hoặc khi phím dấu nằm trong cụm phụ âm tiếng Anh
+  (`best`, `test`, `list`, `last`, `most`, `must`, `first`, `word`, `work`), hoặc
+  khi đó là từ tiếng Anh thông dụng mà cách đọc tiếng Việt là từ hiếm (`this`,
+  `those`, `does`, `goes`, `door`, `down`, `wrong`). Muốn gõ tiếng Anh chắc chắn
+  từng chữ thì chuyển chế độ EN bằng `⌃⌥V`.
 - **Phím `w` như UniKey**: `w`→`ư`, `tw`→`tư`, `chw`→`chư`, `nw`→`nư`; còn `kw`,
   `ew`, `new`, `threw` vẫn là `w`.
 - **Khôi phục / undo**: gõ lặp phím biến đổi để huỷ (`aaa→aa`, `ass→as`), `z` xoá dấu,
@@ -209,6 +213,9 @@ hoa8c5      → hoặc        thuy3      → thuỷ
 - `z` xoá dấu: `aasz → â`, `aaszz → a`.
 - `Esc` khi đang gõ dở: trả lại đúng chuỗi phím gốc (ví dụ `vieejt<Esc> → vieejt`).
 - Muốn gõ tiếng Anh chắc chắn: nhấn `⌃⌥V` để sang chế độ EN (giống UniKey).
+- Từ vừa là tiếng Anh vừa là tiếng Việt phổ biến thì ưu tiên tiếng Việt
+  (`these→thế`, `there→thể`, `been→bên`, `queen→quên`, `chair→chải`, `cats→cát`);
+  còn `thees`/`theer`/`theem`/`reets` vẫn ra đúng các từ tiếng Việt đó.
 
 ## Cấu hình
 
@@ -237,7 +244,7 @@ và nạp lại).
 | `mode` | `vi` / `en` | chế độ gõ mặc định |
 | `method` | `telex` / `vni` | kiểu gõ |
 | `tone_style` | `modern` / `traditional` | `hoà/thuỷ/khoẻ` hay `hòa/thủy/khỏe` |
-| `smart_english` | `true` / `false` | tự nhận biết từ không phải tiếng Việt |
+| `smart_english` | `true` / `false` | tự nhận biết từ không phải tiếng Việt (cụm phụ âm + danh sách từ tiếng Anh thông dụng) |
 | `insert_mode` | `marked` / `direct` | cách chèn chữ: dùng marked text (mặc định) hoặc tự thay thế trực tiếp |
 | `hotkeys` | chuỗi | dạng `ctrl+alt+v`, `cmd+shift+1`, … |
 
@@ -271,7 +278,7 @@ cargo run --manifest-path core/Cargo.toml --bin doctkey-cli -- --repl
 | Không thấy DoctKey trong Input Sources | Mở cửa sổ **Cài đặt → Trạng thái** để xem lý do; đăng xuất/đăng nhập lại là bắt buộc trên macOS 26; bấm **Đăng ký bộ gõ**; nếu vẫn không được, xem chữ ký (ad-hoc?) và ký lại bằng Apple Development trong tab Trạng thái; hoặc chạy `scripts/diagnose.sh`. |
 | Đã chọn DoctKey nhưng gõ không ra dấu | Kiểm tra menu bar đang là `VI` (nhấn `⌃⌥V`); kiểm tra kiểu gõ đúng (`Telex`/`VNI`); thử đổi `insert_mode` sang `direct` nếu app không hiển thị marked text. |
 | macOS chặn bộ gõ chuẩn (không thấy trong Input Sources, chữ ký ad-hoc) | Dùng **Chế độ tương thích (CGEvent)**: tab Chung → bật, cấp quyền Accessibility, chọn bố cục ABC, bật khởi động cùng macOS. |
-| Gõ tiếng Anh bị bẻ dấu | Chuyển sang chế độ EN (`⌃⌥V`) — bộ gõ ưu tiên tiếng Việt giống UniKey. |
+| Gõ tiếng Anh bị bẻ dấu | Các từ thông dụng đã được giữ nguyên (`best`, `test`, `this`, `door`, …). Nếu gặp từ lạ trùng cách gõ tiếng Việt, chuyển sang chế độ EN (`⌃⌥V`) hoặc tắt **Ưu tiên tiếng Việt** trong Cài đặt. |
 | Không gõ được trong Terminal / VSCode / một số app | Đổi `insert_mode` sang `direct` trong config rồi nạp lại (`⌃⌥R`). |
 | App không chạy / menu bar không hiện | `pkill -f DoctKey` rồi chọn lại bộ gõ; xem log: `log stream --predicate 'process == "DoctKey"'`. |
 | macOS báo app không hợp lệ / chặn chữ ký | Ký bằng chứng chỉ Apple Development/Developer ID: `SIGN_ID="..." make install`. |
